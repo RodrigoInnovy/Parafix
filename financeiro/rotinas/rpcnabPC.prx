@@ -1,0 +1,37 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabPC()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CINFCOMP,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABCC ³                ³
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna TIPO DE DOCUMENTO PARA DOCUMENTO DENTRO DO CNAB  ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+
+// - Implantado por Flávia - Microsiga Campinas na Confibra em 04-09-08
+// -  Protheus 10
+
+//_cInfComp := "05"         // para armazenar informacoes (OUTROS)
+
+_cInfComp := Tabela("17",SE2->E2_TIPO)
+
+   IF EMPTY(_cInfComp)
+      _cInfComp := "05"
+   ENDIF
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cInfComp)
+Return(_cInfComp)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+

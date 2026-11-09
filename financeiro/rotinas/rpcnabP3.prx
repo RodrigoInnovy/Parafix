@@ -1,0 +1,46 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabP3()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CCTABAN,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABP3 ³ 
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna Conta do Banco a Pagar                           ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+//
+////Implantado por Flávia - Microsiga Campinas na Confibra em 04-09-08
+// Protheus 10
+
+_cCTABAN := ""    
+
+If EMPTY(SE2->E2_CODBAR)      //SEM COD DE BARRAS
+//   IF SE2->E2_BANCO <> "399"
+//      _cCTABAN := Substr(ALLTRIM(SE2->E2_NUMCON),1,LEN(ALLTRIM(SE2->E2_NUMCON))-1)
+//   ELSE
+//      _cCTABAN := Substr(ALLTRIM(SE2->E2_NUMCON),1,LEN(ALLTRIM(SE2->E2_NUMCON))-2)
+//   ENDIF
+
+//        _cCTABAN := Substr(ALLTRIM(SE2->E2_NUMCON),1,AT("-",SE2->E2_NUMCON)-1)
+          _cCTABAN := Substr(ALLTRIM(SA2->A2_NUMCON),1,AT("-",SA2->A2_NUMCON)-1)
+ELSE
+   IF SUBSTR(SE2->E2_CODBAR,1,3) <> "237"
+     _cCTABAN := REPL("0",6) 
+   ELSE
+     _cCTABAN := SUBSTR(SE2->E2_CODBAR,37,7)
+   ENDIF
+ENDIF
+
+_cCTABAN := strzero(int(val(_cCTABAN)),13)
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cCTABAN)
+Return(_cCTABAN)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08

@@ -1,0 +1,202 @@
+//Bibliotecas
+#Include "Protheus.ch"
+#Include "TopConn.ch"
+#INCLUDE "TOTVS.CH"
+ 
+//Constantes
+//#Define STR_PULA    Chr(13)+Chr(10)
+ 
+/*/{Protheus.doc} Fixfinctb
+Função que cria um exemplo de FWMsExcel
+@author Lucas
+@since 15/03/2021
+@version 1.0
+    @example
+    u_Fixfinctb()
+/*/
+ 
+User Function Fixctb()
+    Local aArea        := GetArea()
+    Local cQuery        := ""
+    Local cQuery2       := ""
+    Local oFWMsExcel
+    Local oExcel
+    Local cArquivo    := GetTempPath()+'zTstExc1.xml'
+ 
+    //Pegando os dados
+cQuery := " SELECT A2_COD as 'Codigo', A2_LOJA as 'Loja' , A2_NOME as 'Nome', A2_CONTA as 'Conta_Contabil', E2_NUM as 'Titulo', CONVERT (DATETIME,E2_EMISSAO) as 'Emissao', E2_HIST as 'Invoice', CONVERT (DATETIME,E2_VENCTO) as 'Vencimento', format(E2_SALDO, 'C', 'pt-br') as 'Saldo', E2_TIPO as 'Tipo', "
+         cQuery += " CASE "
+         cQuery += "   WHEN  E2_MOEDA = '1' THEN '1 - REAL' "
+         cQuery += "   WHEN  E2_MOEDA = '2' THEN '2 - DOLLAR' "
+         cQuery += "   WHEN  E2_MOEDA = '3' THEN '3 - EURO' "
+         cQuery += "   WHEN  E2_MOEDA = '6' THEN '6 - DOLLAR COMPRA' "
+         cQuery += "   WHEN  E2_MOEDA = '7' THEN '7 - DOLLAR VENDA' "
+         cQuery += "   END AS 'Tipo_Moeda', "
+		 cQuery += "   DATEDIFF(DAY,E2_EMISSAO, E2_VENCTO) AS 'Prazo', "
+	     cQuery += "   DATEDIFF(DAY, '20210228', E2_VENCTO) AS 'Dias', "
+         cQuery += "   CASE "
+		 cQuery += "	WHEN '20210228' < E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) >=	'90'														THEN '(a.1) A vencer acima de 90 dias' "
+		 cQuery += "	WHEN '20210228' < E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) >	'60'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) <= '90'	THEN '(a.2) A vencer de 61 a 90 dias' "
+		 cQuery += "	WHEN '20210228' < E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) >	'30'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) <= '60'	THEN '(a.3) A vencer de 31 a 60 dias' "
+		 cQuery += "	WHEN '20210228' < E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <=	'30'														THEN '(a.4) A vencer ate 30 dias' "
+		 cQuery += "	WHEN '20210228' = E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <=	'30'														THEN '(a.4) A vencer ate 30 dias' "
+		 cQuery += "	WHEN DATEDIFF(DAY, '20210228', E2_VENCTO) 	=	'0'																					THEN 'Vence hoje' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-0'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-30'	THEN '(b) Vencidos ate 30 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-30'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-60'	THEN '(c) Vencidos de 31 a 60 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-60'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-90'	THEN '(d) Vencidos de 61 a 90 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-90'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-120'	THEN '(e) Vencidos de 91 a 120 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-120'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-150'	THEN '(f) Vencidos de 121 a 150 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-150'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-180'	THEN '(g) Vencidos de 151 a 180 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-180'	 AND DATEDIFF(DAY, '20210228', E2_VENCTO) >= '-360'	THEN '(h) Vencidos de 181 a 360 dias' "
+		 cQuery += "	WHEN '20210228' > E2_VENCTO AND DATEDIFF(DAY, '20210228', E2_VENCTO) <	'-360'														THEN '(i) Vencidos acima de 360 dias' "
+		 cQuery += "	END AS 'Status' "
+	   						 
+					   
+			cQuery += " FROM "+RetSqlName("SE2")+" SE2," +RetSqlName("SA2")+" SA2"
+			cQuery += " WHERE  A2_COD = E2_FORNECE AND A2_LOJA = E2_LOJA "
+			cQuery += " AND SE2.D_E_L_E_T_ = '' "
+			cQuery += " AND A2_TIPO <> 'X' "
+			cQuery += " AND E2_EMIS1 <= '20210228' "
+			cQuery += " AND E2_SALDO > '0' "
+			cQuery += " AND E2_TIPO IN ('NF') "
+
+    TCQuery cQuery New Alias "QRYFIN"
+
+
+    cQuery2 := " SELECT DISTINCT FINAN.E2_FORNECE as Fornecedor, FINAN.E2_LOJA AS Loja, FINAN.A2_CONTA as 'Conta_Contabil', FINAN.A2_NOME as Nome, FORMAT(FINAN.VALOR, 'C','pt-br') as 'Valor_Financeiro',  FORMAT(CONTABIL.VALORCONTAB, 'C', 'pt-br') as 'Valor_Contabil',  FORMAT(ROUND((SLDCONTAB.CREDITO - SLDCONTAB.DEBITO),2), 'C', 'pt-br')  AS 'Saldo_Contabil' "
+
+	cQuery2 += " FROM "
+
+	cQuery2 += " ( SELECT E2_FORNECE, E2_LOJA, A2_CONTA, A2_NOME, SUM(E2_SALDO) AS VALOR, SUM(E2_VLCRUZ) AS 'MOEDA_ESTR'
+	cQuery2 += " FROM "+RetSqlName("SE2")+" SE2," +RetSqlName("SA2")+" SA2"
+	cQuery2 += " WHERE  A2_COD = E2_FORNECE AND A2_LOJA = E2_LOJA "
+	cQuery2 += "		AND SE2.D_E_L_E_T_ = '' "
+	cQuery2 += "		AND A2_TIPO <> 'X' "
+	cQuery2 += "		AND E2_EMIS1 <= '20210228' "
+	cQuery2 += "		AND E2_SALDO > '0' "
+	cQuery2 += "		AND E2_TIPO IN ('NF') "
+	cQuery2 += "	 GROUP BY E2_FORNECE, E2_LOJA, A2_CONTA, A2_NOME) AS FINAN "
+		
+	cQuery2 += "	JOIN 
+
+	cQuery2 += "	 (SELECT DISTINCT SUBSTRING(CT2_KEY,1,2) AS FILIAL,  SUBSTRING(CT2_KEY,15,6) AS FORNLOJA, CT2_CREDIT , SUM(CT2_VALOR) AS VALORCONTAB
+	cQuery2 += "		FROM "+RetSqlName("CT2")+ " CT2," +RetSqlName("SA2")+ " SA2"	
+			
+	cQuery2 += "		WHERE CT2_CREDIT = A2_CONTA			"
+	cQuery2 += "		AND SUBSTRING(CT2_KEY,15,8) = A2_COD+A2_LOJA "
+	cQuery2 += "		AND CT2_DATA BETWEEN '20210201' AND '20210228' "
+	cQuery2 += "		AND CT2_FILIAL = '01' "
+	cQuery2 += "		AND CT2.D_E_L_E_T_ = '' "
+	cQuery2 += "		GROUP BY  SUBSTRING(CT2_KEY,1,2), SUBSTRING(CT2_KEY,15,6), CT2_CREDIT) AS CONTABIL "
+			
+	cQuery2 += "		ON CONTABIL.CT2_CREDIT = FINAN.A2_CONTA "
+
+	cQuery2 += "	JOIN "
+
+	cQuery2 += "		(SELECT CQ1_CONTA CONTA, SUM(CQ1_DEBITO) DEBITO, SUM(CQ1_CREDIT) CREDITO "
+	cQuery2 += "			FROM "+RetSqlName("CQ1")+ " CQ1"
+	cQuery2 += "			WHERE CQ1.D_E_L_E_T_ = '' "
+
+	cQuery2 += "		GROUP BY CQ1_CONTA ) AS SLDCONTAB "
+
+	cQuery2 += "		ON SLDCONTAB.CONTA = CONTABIL.CT2_CREDIT "
+
+
+	cQuery2 += "		GROUP BY  FINAN.E2_FORNECE, FINAN.E2_LOJA, FINAN.A2_CONTA, FINAN.A2_NOME, FINAN.VALOR, CONTABIL.VALORCONTAB, (SLDCONTAB.CREDITO - SLDCONTAB.DEBITO) "
+
+
+    TCQuery cQuery2 New Alias "QRYCTFIN"
+
+
+
+     
+    //Criando o objeto que irá gerar o conteúdo do Excel
+    oFWMsExcel := FWMSExcel():New()
+     
+    
+    //Aba 01 - Financeiro
+    oFWMsExcel:AddworkSheet("Financeiro")
+
+          //Criando a Tabela
+        oFWMsExcel:AddTable("Financeiro","Titulos")
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Codigo",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Loja",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Nome",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Conta_Contabil",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Titulo",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Emissao",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Invoice",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Vencimento",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Saldo",3)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Tipo",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Tipo Moeda",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Prazo",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Dias",1)
+        oFWMsExcel:AddColumn("Financeiro","Titulos","Status",1)
+        
+        //Criando as Linhas... Enquanto não for fim da query
+        While !(QRYFIN->(EoF()))
+            oFWMsExcel:AddRow("Financeiro","Titulos",{;
+                                                                    QRYFIN->Codigo,;
+                                                                    QRYFIN->Loja,;
+                                                                    QRYFIN->Nome,;
+                                                                    QRYFIN->Conta_Contabil,;
+                                                                    QRYFIN->Titulo,;
+                                                                    QRYFIN->Emissao,;
+                                                                    QRYFIN->Invoice,;
+                                                                    QRYFIN->Vencimento,;
+                                                          Transform(QRYFIN->Saldo, "@E 999,999,999.99"),;
+                                                                    QRYFIN->Tipo,;
+                                                                    QRYFIN->Tipo_Moeda,;
+                                                                    QRYFIN->Prazo,;
+                                                                    QRYFIN->Dias,;
+                                                                    QRYFIN->Status;
+            })
+         
+            //Pulando Registro
+            QRYFIN->(DbSkip())
+        EndDo
+        
+
+        //Aba 02 - Financeiro X Contabil
+    oFWMsExcel:AddworkSheet("Financeiro X Contabil")
+        //Criando a Tabela
+        oFWMsExcel:AddTable("Financeiro X Contabil","Movimentos")
+        oFWMsExcel:AddColumn("Financeiro X Contabil","Movimentos","Fornecedor",1)
+        oFWMsExcel:AddColumn("Financeiro X Contabil","Movimentos","Loja",1)
+        oFWMsExcel:AddColumn("Financeiro X Contabil","Movimentos","Conta Contabil",1)
+        oFWMsExcel:AddColumn("Financeiro X Contabil","Movimentos","Nome",1)
+        oFWMsExcel:AddColumn("Financeiro X Contabil","Movimentos","Valor Financeiro",1)
+        oFWMsExcel:AddColumn("Financeiro X Contabil","Movimentos","Valor Contabil",1)
+     
+        
+        //Criando as Linhas... Enquanto não for fim da query
+        While !(QRYCTFIN->(EoF()))
+            oFWMsExcel:AddRow("Financeiro X Contabil","Movimentos",{;
+                                                                    QRYCTFIN->Fornecedor,;
+                                                                    QRYCTFIN->Loja,;
+                                                                    QRYCTFIN->Conta_Contabil,;
+                                                                    QRYCTFIN->Nome,;
+                                                                    Transform(QRYCTFIN->Valor_Financeiro, "@E 999,999,999.99"),;
+                                                                    Transform(QRYCTFIN->Saldo_Contabil, "@E 999,999,999.99");
+            })
+         
+            //Pulando Registro
+            QRYCTFIN->(DbSkip())
+        EndDo
+
+
+     
+    //Ativando o arquivo e gerando o xml
+    oFWMsExcel:Activate()
+    oFWMsExcel:GetXMLFile(cArquivo)
+         
+    //Abrindo o excel e abrindo o arquivo xml
+    oExcel := MsExcel():New()             //Abre uma nova conexão com Excel
+    oExcel:WorkBooks:Open(cArquivo)     //Abre uma planilha
+    oExcel:SetVisible(.T.)                 //Visualiza a planilha
+    oExcel:Destroy()                        //Encerra o processo do gerenciador de tarefas
+     
+    QRYFIN->(DbCloseArea())
+    RestArea(aArea)
+Return

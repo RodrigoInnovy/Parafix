@@ -1,0 +1,158 @@
+#INCLUDE "totvs.ch"
+#INCLUDE "topconn.ch"
+
+//-----------------------------------------------------------------
+/*/{Protheus.doc} altProdCli
+Rotina para alteração do modelo de layout do certificado
+	
+@type           function
+@author         Julio Lisboa
+@since          10/12/2021
+/*/
+//-----------------------------------------------------------------
+User Function altProdCli(cCodCli,cLojCli,cProduto)
+
+	Local cTitulo		:= "Amarração Produto x Clientes (Ensaios)"
+	Local cValid		:= "AlwaysTrue()"
+	Local aEditCpo		:= {"QQ7_ZZCQLA"}
+
+	Private oGet		:= nil
+	Private oDlg		:= nil
+	Private oGetDados	:= nil
+	Private aHeader		:= {}
+	Private aItens		:= {}
+
+    default cCodCli     := "000001"
+    default cLojCli     := "01"
+    default cProduto    := "1-401-0274"
+
+	MsAguarde({|| BuscaDados(cCodCli,cLojCli,cProduto) }, "Aguarde", "Buscando os itens...")
+
+	Define MsDialog oDlg From 0,0 to 340,880 Pixel Title cTitulo Style 128
+	oDlg:lEscClose     := .F.
+	oGetDados :=	MsNewGetDados():New(010,4,150,440,GD_UPDATE,cValid,cValid,"",aEditCpo,,,,,,oDlg,aHeader,aItens)
+
+	@ 155,320 Button "Confirmar" 		of oDlg Size 50,10 Pixel Action ( gravaDados() )
+	@ 155,390 Button "Sair"      		of oDlg Size 40,10 Pixel Action (oDlg:End())
+	Activate MsDialog oDlg Centered
+
+return
+
+//-----------------------------------------------------------------
+Static Function BuscaDados(cCodCli,cLojCli,cProduto)
+
+	Local cQuery		:= ""
+    local aCpos         := {}
+	Local cAlias		:= GetNextAlias()
+    Local cTitulo		:= ""
+	Local nI			:= 0
+	Local aAreaSX3		:= SX3->(GetArea())
+
+	cQuery		+= "SELECT DISTINCT" + CRLF
+	cQuery		+= "           QQ7_CLIENT" + CRLF
+	cQuery		+= "         , QQ7_LOJA" + CRLF
+	cQuery		+= "         , A1_NOME" + CRLF
+	cQuery		+= "         , QQ7_PRODUT" + CRLF
+	cQuery		+= "         , B1_DESC" + CRLF
+	cQuery		+= "         , QQ7_LABOR" + CRLF
+	cQuery		+= "         , QQ7_ENSAIO" + CRLF
+	cQuery		+= "         , QQ7_CODREC" + CRLF
+	cQuery		+= "         , QQ7_OPERAC" + CRLF
+	cQuery		+= "         , QQ7_ZZCQLA" + CRLF
+	cQuery		+= "FROM" + CRLF
+	cQuery		+= "           " + retsqltab("QQ7") + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("SA1") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 A1_COD             = QQ7_CLIENT" + CRLF
+	cQuery		+= "                                 AND A1_LOJA        = QQ7_LOJA" + CRLF
+	cQuery		+= "                                 AND SA1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("SB1") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 B1_COD             = QQ7_PRODUT" + CRLF
+	cQuery		+= "                                 AND SB1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "WHERE" + CRLF
+	cQuery		+= "           QQ7.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "            AND QQ7_CLIENT = '" + cCodCli  + "' " + CRLF
+	cQuery		+= "            AND QQ7_LOJA = '" + cLojCli + "' " + CRLF
+	cQuery		+= "            AND QQ7_PRODUT = '" + cProduto + "' " + CRLF
+	cQuery		+= "ORDER BY " + CRLF
+	cQuery		+= "        QQ7_CLIENT, QQ7_LOJA, QQ7_PRODUT, QQ7_LABOR, QQ7_ENSAIO" + CRLF
+	cQuery		+= "" + CRLF
+
+	TcQuery cQuery New Alias &cAlias
+
+    aCpos       := (cAlias)->(DbStruct())
+    For nI := 1 to Len(aCpos)
+		SX3->(DbSetOrder(2)) //X3_CAMPO
+		If SX3->(DbSeek(aCpos[nI,1]))
+			cTitulo := SX3->X3_TITULO
+			Aadd(aHeader,{cTitulo,AllTrim(SX3->X3_CAMPO),SX3->X3_PICTURE,SX3->X3_TAMANHO,SX3->X3_DECIMAL,,,SX3->X3_TIPO,SX3->X3_F3})
+		EndIf
+	Next
+
+	If (cAlias)->(!Eof())
+		While (cAlias)->(!Eof())
+
+			Aadd(aItens,{;
+				(cAlias)->QQ7_CLIENT,;
+				(cAlias)->QQ7_LOJA,;
+				(cAlias)->A1_NOME,;
+				(cAlias)->QQ7_PRODUT,;
+				(cAlias)->B1_DESC,;
+				(cAlias)->QQ7_LABOR,;
+				(cAlias)->QQ7_ENSAIO,;
+				(cAlias)->QQ7_CODREC,;
+				(cAlias)->QQ7_OPERAC,;
+				(cAlias)->QQ7_ZZCQLA,;
+				.F.;
+				})
+
+			(cAlias)->(DbSkip())
+		EndDo
+	EndIf
+
+	(cAlias)->(DbCloseArea())
+    RestArea(aAreaSX3)
+
+Return
+
+//-----------------------------------------------------------------
+static function gravaDados()
+
+	local lOk			:= .T.
+	local aItens        := AClone( oGetDados:aCols )
+	local nItem         := 0
+	local aAreaQQ7      := QQ7->(GetArea())
+	local cCodCli       := ""
+	local cLojCli       := ""
+	local cProduto      := ""
+	local cLaborat      := ""
+	local cEnsaio       := ""
+
+	QQ7->(DbSetOrder(1)) //QQ7_FILIAL+QQ7_PRODUT+QQ7_CLIENT+QQ7_LOJA+QQ7_LABOR+QQ7_ENSAIO+QQ7_CODREC+QQ7_OPERAC
+
+	for nItem := 1 to len(aItens)
+		cCertificado        := GdFieldGet("C6_ZZCERT",nItem,.F.,aHeader,aItens)
+		cCodCli             := GdFieldGet("QQ7_CLIENT",nItem,.F.,aHeader,aItens)
+		cLojCli             := GdFieldGet("QQ7_LOJA",nItem,.F.,aHeader,aItens)
+		cProduto            := GdFieldGet("QQ7_PRODUT",nItem,.F.,aHeader,aItens)
+		cLaborat            := GdFieldGet("QQ7_LABOR",nItem,.F.,aHeader,aItens)
+		cEnsaio             := GdFieldGet("QQ7_ENSAIO",nItem,.F.,aHeader,aItens)
+
+		If QQ7->(DbSeek( FwXFilial("QQ7") + cProduto + cCodCli + cLojCli + cLaborat + cEnsaio ))
+			If reclock("QQ7",.F.)
+				QQ7->QQ7_ZZCQLA      := GdFieldGet("QQ7_ZZCQLA",nItem,.F.,aHeader,aItens)
+				QQ7->(MsUnlock())
+			endif
+		endif
+	next
+
+	if lOk
+		oDlg:End()
+	endif
+
+	restArea( aAreaQQ7 )
+
+return

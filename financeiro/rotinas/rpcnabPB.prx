@@ -1,0 +1,31 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabPB()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CNUMERO,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABPB ³ Patricia P. Santos                   ³18/11/1999³
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³Retorna o valor do CODIGO DE BARRAS                                    ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³Uso SigaFin - Empresa ROYALPLAS- CNAB                                  ³
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+// - IMPLANTADO NA ROYALPLAS EM 24/08/2000 POR VITOR LUIS FATTORI-SIGACPS
+
+
+_cNUMERO := SUBSTR(SE2->E2_CODBAR,10,10)
+
+_cNUMERO := STRZERO(VAL(_cNUMERO),10)
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cNUMERO)
+Return(_cNUMERO)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08

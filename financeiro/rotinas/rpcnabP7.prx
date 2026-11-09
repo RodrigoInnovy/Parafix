@@ -1,0 +1,44 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabP7()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CNUMERO,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABP7 ³ Patricia P. Santos                   ³11/11/1999³
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna NUMERO DO PAGAMENTO (PARTE CGC+PREF.+TITULO+PARC.³
+// ³BANCO BRADESCO FAZ CONSISTENCIA DO NUMERO DE PAGAMENTO EFETUADO, MAS   ³
+// ³NAO LEVA EM CONSIDERACAO O FORNECEDOR. NO CASO DA NF SERIE UNI 000030, ³
+// ³SE PAGA PARA UM FORNECEDOR, NAO PODERA SER PAGA NOVAMENTE, MESMO PARA  ³
+// ³OUTRO FORNECEDOR. ENVIAMOS PARA ISSO OS 6 ULTIMOS DIGITOS DO FORNECEDOR³
+// ³COMO PARTE DO NUMERO DO PAGAMENTO. AINDA PODEREMOS TER PROBLEMAS, MAS  ³
+// ³E O QUE TEM MENOR POSSIBILIDADE. P/ SE ENVIAR O CODIGO DO FORNECEDOR,  ³
+// ³NAO TEMOS ESPACO PARA A LOJA. SE FOREM AS PRIMEIRAS POSICOES DO CGC,   ³
+// ³TEREMOS PROBLEMAS COM FILIAIS.                                         ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³Uso SigaFin - Empresa ROYALPLAS- CNAB                                  ³
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+// - IMPLANTADO NA ROYALPLAS EM 24/08/2000 POR VITOR LUIS FATTORI-SIGACPS
+
+
+
+_cNUMERO := ""
+
+_cNUMERO := SE2->E2_FORNECE
+
+_cNUMERO := _cNUMERO + SE2->E2_PREFIXO
+_cNUMERO := _cNUMERO + SE2->E2_NUM
+_cNUMERO := _cNUMERO + SE2->E2_PARCELA
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cNUMERO)
+Return(_cNUMERO)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08

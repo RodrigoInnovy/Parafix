@@ -1,0 +1,67 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabP4()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CDIGITO,_CX,_NX1,_NX2,_NX3,_NX4")
+SetPrvt("_NX5,_NX6,_NX7,_NY,_NX,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABP4 ³
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna DIGITO DA CONTA DO BANCO C. A PAGAR              ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+////Implantado por Flávia - Microsiga Campinas na Confibra em 04-09-08
+// Protheus 10
+
+_cDigito:= "P"         
+
+If EMPTY(SE2->E2_CODBAR)      //SEM COD DE BARRAS
+//   _cDigito:= Substr(ALLTRIM(SE2->E2_NUMCON),AT("-",ALLTRIM(SE2->E2_NUMCON))+1,2)
+   _cDigito:= Substr(ALLTRIM(SA2->A2_NUMCON),AT("-",ALLTRIM(SA2->A2_NUMCON))+1,2)   
+   
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==>    __Return(_cDIGITO)
+Return(_cDIGITO)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+ELSE
+   IF SUBSTR(SE2->E2_CODBAR,1,3)<>"237"
+     _cDigito:= "0" 
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==>      __Return(_cDIGITO)
+Return(_cDIGITO)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+   ELSE
+    _cX := SUBSTR(SE2->E2_CODBAR,37,7)
+   // CALCULA O DIGITO                                  
+      _nX1 := VAL( SUBSTR(_cX,1,1) ) *2
+      _nX2 := VAL( SUBSTR(_cX,2,1) ) *7
+      _nX3 := VAL( SUBSTR(_cX,3,1) ) *6
+      _nX4 := VAL( SUBSTR(_cX,4,1) ) *5
+      _nX5 := VAL( SUBSTR(_cX,5,1) ) *4
+      _nX6 := VAL( SUBSTR(_cX,6,1) ) *3 
+      _nX7 := VAL( SUBSTR(_cX,7,1) ) *2
+      _nY := _nX1+_nX2+_nX3+_nX4+_nX5+_nX6+_nX7
+      _nX := ( _nY % 11)
+      IF _nX == 0
+        _cDigito := 0
+        _cDigito := ALLTRIM(strZERO(INT(_NX),1))
+      Elseif _nX == 1
+        _cDigito := "P"
+      else
+        _nX := 11 -_nX
+        _cDigito:=ALLTRIM(strZERO(INT(_NX),1))
+      endif
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==>    __Return(_cDIGITO)
+Return(_cDIGITO)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+   ENDIF
+ENDIF
+
+
+

@@ -1,0 +1,17 @@
+#line 1 "E:\TOTVS\PROTHEUS\TESTE\PROTHE~1\INCLUDE\rwmake.ch"
+#line 1 "E:\TOTVS\PROTHEUS\TESTE\PROTHE~1\INCLUDE\stdwin.ch"
+#line 14 "rwmake.ch"
+#line 3 "z:\totvs\producao\PROTHE~2\rdmake\parafix\FINANC~1\rotinas\pagacta.prw"
+
+
+Function U_PagaCta()
+   if SEA->EA_Modelo == "31"
+      _CtaCed  := replicate("0",14)
+      _cDigCon := _cDigCon2 := "0"
+      _cBanco  := left(SE2->E2_CODBAR,3)
+      if _cBanco == "001"
+         _nCol   := iif(len(trim(SE2->E2_CODBAR))>44,24,37)
+         _CtaCed := u_Mod11Base7(substr(SE2->E2_CODBAR,_nCol,7),14)+" "
+      endif
+   endif
+Return(_CtaCed)

@@ -1,0 +1,51 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabP9()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CDATA,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABP9 ³ Patricia P. Santos                   ³16/11/1999³
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³Retorna a data limite para desconto                                    ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³         ATUALIZACOES SOFRIDAS DESDE A CONSTRU€AO INICIAL.             ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³ Programador    ³  Data  ³ Motivo da Alteracao                         ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³ Patricia       ³17/11/99³  So fornece a data se existir um desconto   ³
+// ³                ³03/12/99³  Data de Pagamento e Limite para desconto   ³
+// ³                ³        ³alterada para digitacao manual. Ao chamar ro-³
+// ³                ³        ³tina, chama primeiro tela para data de paga- ³
+// ³                ³        ³mento.                                       ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³Uso SigaFin - Empresa ROYALPLAS-CNAB                                   ³
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+// - IMPLANTADO NA ROYALPLAS EM 24/08/2000 POR VITOR LUIS FATTORI-SIGACPS
+
+_cDATA := "00000000"
+
+IF !EMPTY(SE2->E2_CODBAR)
+   IF (VAL( SUBSTR(SE2->E2_CODBAR,10,10)) )   > 0
+
+      IF ((VAL( SUBSTR(SE2->E2_CODBAR,10,10))/100)  - SE2->E2_SALDO) >0
+
+         _cDATA := Str( Year(SE2->E2_VENCREA),4)+StrZero( Month(SE2->E2_VENCREA),2 )+ ;
+         StrZero( Day(SE2->E2_VENCREA) ,2)      
+
+      ENDIF
+   endif
+ENDIF
+
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cDATA)
+Return(_cDATA)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08

@@ -1,0 +1,101 @@
+#include 'protheus.ch'
+#include 'topconn.CH'
+
+//-----------------------------------------------------------------
+/*/{Protheus.doc} fEnviaArqMail
+Envia o arquivo por e-mail
+
+@type           Function
+@author         Julio Lisboa
+@since          07/12/2021
+/*/
+//-----------------------------------------------------------------
+User Function fEnviaArqMail(cDestinatario,cAssunto,cMensagem,aArquivos)
+
+	Local cFrom			    := GETMV("MV_RELFROM",.F.,"")
+	Local cSMTPServer	    := GETMV("MV_RELSERV",.F.,"")
+	Local cSMTPUser 	    := GETMV("MV_RELACNT",.F.,"")
+	Local cSMTPPass 	    := GETMV("MV_RELPSW",.F.,"")
+	Local nSMTPPort		    := If(GETMV("MV_PORSMTP") == 0, 25, GETMV("MV_PORSMTP"))
+	Local lRelAuth 		    := GetMv("MV_RELAUTH",.F., .F.)
+	Local lSSL			    := GetMV("MV_RELSSL")
+	Local lTLS			    := GetMV("MV_RELTLS")
+	Local nTimeOut		    := GetMV("MV_RELTIME")
+	local nErro             := 0
+	local nPos              := 0
+	local nAnexos			:= 0
+	local oMailManager      := nil
+	local oMessage          := nil
+
+	geralog( "" )
+	geraLog( "Inicio da Rotina" )
+
+	If (nPos := AT(':',cSMTPServer)) > 0
+		nSMTPPort 		:= Val(Substr(cSMTPServer, nPos + 1,Len(cSMTPServer)))
+		cSMTPServer := Substr(cSMTPServer, 0, nPos - 1)
+	EndIf
+
+	geraLog( "Server SMTP: " + AllTrim(AllToChar(cSMTPServer)) )
+	geraLog( "Porta SMTP: " + AllTrim(AllToChar(nSMTPPort)) )
+
+	oMailManager := TMailManager():New()
+	oMailManager:SetUseSSL(lSSL)
+	oMailManager:SetUseTLS(lTLS)
+	nErro := oMailManager:Init( '', cSMTPServer , cSMTPUser, cSMTPPass, 0, nSMTPPort )
+	if nErro == 0
+		oMailManager:SetSmtpTimeOut( nTimeOut )
+		nErro := oMailManager:SmtpConnect()
+
+		if nErro == 0
+			if lRelAuth
+				nErro := oMailManager:SmtpAuth(cSMTPUser ,cSMTPPass)
+			endif
+			if nErro == 0
+				oMessage := TMailMessage():New()
+				oMessage:Clear()
+				oMessage:cFrom		    := cFrom
+				oMessage:cTo			:= AllTrim(cDestinatario)
+				oMessage:cSubject		:= cAssunto
+				oMessage:cBody		    := cMensagem
+
+				geraLog( "Qtde Anexos: " + AllTrim(AllToChar( len(aArquivos) )) )
+
+				for nAnexos := 1 to len(aArquivos)
+					nErro		:= oMessage:AttachFile( aArquivos[nAnexos] )
+					if nErro < 0
+						geraLog( "Erro no AttachFile: " + AllTrim(AllToChar(oMailManager:GetErrorString( nErro ))) )
+						exit
+					endif
+				next
+
+				if nErro >= 0
+					nErro := oMessage:Send( oMailManager )
+					if nErro == 0
+						geraLog("E-mail enviado com sucesso!")
+					else
+						geraLog( "Erro no Send: " + AllTrim(AllToChar(oMailManager:GetErrorString( nErro ))) )
+					endif
+				endif
+			else
+				geraLog( "Erro no SmtpAuth: " + AllTrim(AllToChar(oMailManager:GetErrorString( nErro ))) )
+			endif
+
+			oMailManager:SMTPDisconnect()
+		else
+			geraLog( "Erro no SmtpConnect: " + AllTrim(AllToChar(oMailManager:GetErrorString( nErro ))) )
+		endif
+	else
+		geraLog( "Erro no Init: " + AllTrim(AllToChar(oMailManager:GetErrorString( nErro ))) )
+	endif
+
+	geraLog( "Final da Rotina" )
+	geralog( "" )
+
+Return
+
+//-----------------------------------------------------------------
+Static Function geraLog( cMensagem )
+
+	Conout("[" + DTOC(Date()) + " " + Time() + "] fEnviaArqMail - " + cMensagem )
+
+Return

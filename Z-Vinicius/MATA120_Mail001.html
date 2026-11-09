@@ -1,0 +1,105 @@
+<html>
+	<head>
+		<meta charset="windows-1252">
+		<meta charset="UTF-8">
+		<style>
+			body{
+				width: 			700px;
+				font:			normal normal normal 14px 'open sans', sans-serif;
+			}
+			
+			h1 {
+				font: 			normal normal normal 22px 'open sans', sans-serif;
+				color: 			rgb(0, 136, 203);
+				padding-top: 	3px;
+				padding-bottom:	3px;
+			}
+			
+			h2 {
+				font: 			normal normal normal 14px 'open sans', sans-serif;
+			}
+			
+			table{
+				font:			normal normal normal 14px 'open sans', sans-serif;
+				text-align: 	left
+				border-width: 	0px;
+				
+			}
+
+			thead{
+				font:			normal normal normal 14px 'open sans', sans-serif;
+				background:		Gray;
+				color:			White;
+				text-align: 	left;
+				border-width: 	0px;
+			}
+			
+			.grid{
+				border-top: 	solid rgb(0, 136, 203) 2px; 
+				padding-top:	10px;
+				padding-bottom:	5px;
+				margin-top:		10px;
+			}		
+		</style>
+	</head>
+	
+	<body>
+	<div styele="width:700px;font:normal normal normal 14px 'open sans', sans-serif;">
+		<h1 style="font:normal normal normal 22px 'open sans', sans-serif; color:rgb(0, 136, 203);padding-top: 	3px;padding-bottom:	3px;">
+			Pedido de Compra 
+		</h1>
+		<h2 style="font:normal normal normal 14px 'open sans', sans-serif;">%cContato%</h2>
+		<h2 style="font:normal normal normal 14px 'open sans', sans-serif;">O Pedido de Compra n&uacute;mero %cPedCom% acaba de ser %cOpera%.</h2>
+		<h2 style="font:normal normal normal 14px 'open sans', sans-serif;">Solicitamos que os itens discriminados abaixo sejam %cMsgMail%.</h2>
+		<h2 style="font:normal normal normal 14px 'open sans', sans-serif;">ATEN&Ccedil;&Atilde;O: RESPONDER este email para guilherme.carmezini@parafix.com.br e amailson.ribeiro@parafix.com.br</h2>
+	
+		<!-- Cabeçalho do Pedido --> 
+		<div class="grid" style="border-top:solid rgb(0, 136, 203) 2px; padding-top:10px;padding-bottom:5px;margin-top:10px;">
+			<table style="width:450px;font:normal normal normal 14px 'open sans', sans-serif;text-align:leftborder-width:0px;">
+				<tr>
+					<td>Pedido de Compra</td> 
+					<td>%cPedCom%</td>
+				</tr>
+				<tr>
+					<td>Fornecedor/Loja</td> 
+					<td>%cFornLoja%</td>
+				</tr>
+				<tr>
+					<td>Cliente</td> 
+					<td>Parafix Vinhedo</td>
+				</tr>
+			</table>
+		</div>
+		
+		<!-- Itens do Pedido -->
+		<div class="grid" style="border-top:solid rgb(0, 136, 203) 2px; padding-top:10px;padding-bottom:5px;margin-top:10px;">
+			<table style="width:450px;font:normal normal normal 10px 'open sans', sans-serif;text-align:leftborder-width:0px;">
+				<thead style="font:normal normal normal 11px 'open sans', sans-serif;background:Gray;color:White;text-align:left;border-width:0px;">
+					<tr>
+						<td style="width:150px;">Item</td>
+						<td style="width:150px;">Produto</td>
+						<td style="width:400px;">Descri&ccedil;&atilde;o</td>
+						<td style="width:150px;">UM</td>
+						<td style="width:150px;">Quantidade</td>
+						<td style="width:150px;">Vl. Unit</td>
+						<td style="width:150px;">Total</td>
+						<td style="width:150px;">Dt. Entrega</td>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td style="width:150px;">%It.cItem%</td>
+						<td style="width:150px;">%It.cCod%</td>
+						<td style="width:400px;">%It.cDesc%</td>
+						<td style="width:150px;">%It.cUM%</td>
+						<td style="width:150px;">%It.nQuant%</td>
+						<td style="width:150px;">%It.nVlUnit%</td>
+						<td style="width:150px;">%It.nTotal%</td>
+						<td style="width:150px;">%It.dDtEntrega%</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+	</body>
+</html>

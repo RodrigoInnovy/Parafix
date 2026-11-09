@@ -1,0 +1,26 @@
+SELECT
+* 
+-- UPDATE SD3010 SET D3_TM = '502', D3_CF = 'RE9'
+FROM SD3010 (NOLOCK)
+WHERE D_E_L_E_T_ = ''
+AND D3_OP = '17766101001'
+AND D3_COD = '8-101-0539'
+AND D3_TM = '901'
+
+/*
+Alteração:
+OP: 1776610100
+Produto: 8-101-053
+TM de 901 para 502
+ 
+OP: 17801501001
+Produto: 8-101-0540
+TM de 912 para 501
+ 
+Produto: 8-120-0094
+TM de 912 para 501
+ 
+Produto: 8-120-0094
+TM de 901 para 502
+ 
+*/

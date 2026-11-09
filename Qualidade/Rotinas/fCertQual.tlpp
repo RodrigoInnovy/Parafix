@@ -1,0 +1,1523 @@
+#include "Protheus.Ch"
+#include "Topconn.Ch"
+#include "MSOle.Ch"
+
+#DEFINE FORMATO_DOC 		"16"
+#DEFINE FORMATO_PDF 		"17"
+
+#DEFINE EXTENSAO_DOC        ".docx"
+#DEFINE EXTENSAO_PDF        ".pdf"
+
+#DEFINE MODELO_AUTOM		"1"
+#DEFINE MODELO_DEMAIS		"2"
+
+#DEFINE POS_ITENS 			01
+#DEFINE POS_MODELO 			02
+#DEFINE POS_LOTE 			03
+#DEFINE POS_DESPRO 			04
+#DEFINE POS_CODPRO			05
+#DEFINE POS_QTDPRO			06
+#DEFINE POS_ECN				07
+#DEFINE POS_UNIDMED			08
+#DEFINE POS_DVLD_INI		09
+#DEFINE POS_DVLD_FIM		10
+#DEFINE POS_DFAB_INI		11
+#DEFINE POS_DFAB_FIM		12
+#DEFINE POS_NUMPEDIDO		13
+#DEFINE POS_QTD2PRO			14
+#DEFINE POS_2UNIDMED		15
+#DEFINE POS_INFADPRD		16
+
+#DEFINE POS_TESTE 			01
+#DEFINE POS_UNIDADE 		02
+#DEFINE POS_ESP_MIN 		03
+#DEFINE POS_ESP_MAX 		04
+#DEFINE POS_RES_MIN 		05
+#DEFINE POS_RES_MAX 		06
+#DEFINE POS_RESULTA 		07
+#DEFINE POS_STATUS 			08
+
+#DEFINE POS_DET_OP			01
+#DEFINE POS_DET_PRODUT		02
+#DEFINE POS_DET_DESCPRO		03
+#DEFINE POS_DET_PEDIDO		04
+#DEFINE POS_DET_NOTA		05
+#DEFINE POS_DET_ENSAIO		06
+#DEFINE POS_DET_RESULT		07
+
+#DEFINE GERA_PACKINGLIST	"3"
+#DEFINE GERA_PACKDETALHA	"4"
+
+//-----------------------------------------------------------------
+/*/{Protheus.doc} Certificado de Qualidade
+Rotina responsável pela geração do certificado de qualidade
+
+@type       Function
+@author     Julio Lisboa
+@since      25/11/2021
+/*/
+//-----------------------------------------------------------------
+User Function fCertQual(cFilNf,cNumNF,lEnviMail)
+
+	local aAreaSF2			:= SF2->(GetArea())
+	local aAreaSA1			:= SA1->(GetArea())
+	local cEmailDest		:= ""
+	local cModelo       	:= ""
+	local cTipoModel		:= ""
+	local nDadosImp			:= 0
+	local aAnexos			:= {}
+	local aArquivos			:= {}
+	local nArquivos			:= 0
+	local cFechaDoc			:= ""//Vinicius
+	local cNotaAtual		:= ""
+	local cNomeArq			:= ""
+	local cArquivoDOC		:= ""
+	local cArquivoPDF		:= ""
+	local cNumLote			:= ""
+	local lTeste			:= .F.
+
+	private cDirServDest	:= ""
+	private cDirLocal		:= GetTempPath()
+	private cDirServidor	:= "\Qualidade\"
+	private oWord       	:= nil
+	private lAutomotivo		:= .F.
+	private lInfProd		:= getnewpar("ZZ_FINFPRD",.F.)
+
+	private aDadosDetalhes	:= {}
+	private aDadosImprime	:= {}
+	private cIdioma			:= ""
+	private lImpSegundUM	:= getnewpar("ZZ_IMCQ2UM",.T.)
+
+	default cFilNf			:= ""
+	default cNumNF			:= ""
+	default lEnviMail		:= .T.
+
+	if !empty(cFilNf) .and. !empty(cNumNF)
+		SF2->(DbSetOrder(1)) //F2_FILIAL+F2_DOC+F2_SERIE+F2_CLIENTE+F2_LOJA+F2_FORMUL+F2_TIPO
+		SA1->(DbSetOrder(1)) //A1_FILIAL+A1_COD+A1_LOJA
+
+		If SF2->(DbSeek( AvKey(cFilNf,"F2_FILIAL") + AvKey(cNumNF,"F2_DOC") ))
+			SA1->(DbSeek( FwXFilial("SA1") + AvKey(SF2->F2_CLIENTE,"A2_COD") + AvKey(SF2->F2_LOJA,"A2_LOJA") ))
+			if !lTeste
+				cEmailDest		:= AllTrim(SA1->A1_ZZCQMAI)
+			endif
+
+			criaDiretorios()
+			retIdiomaCliente()
+			limpaArquivosAntigos( Alltrim(SF2->F2_DOC) )
+			aDadosImprime		:= montaQueryQualidade(SF2->F2_FILIAL,SF2->F2_DOC)
+
+			for nDadosImp := 1 to len(aDadosImprime)
+				cNumLote			:= aDadosImprime[nDadosImp,POS_LOTE]
+
+				if aDadosImprime[nDadosImp,POS_MODELO] == MODELO_AUTOM
+					cTipoModel	:= "_automotivo"
+					cModelo		:= "model_auto.doc"
+					cFechaDoc := (cDirLocal + cModelo) //Vinicius
+				else
+					//cTipoModel	:= "_demais"
+					cTipoModel	:= ""
+					cModelo		:= "model_demais" + cIdioma + ".doc"
+					cFechaDoc := (cDirLocal + cModelo) //Vinicius
+				endif
+
+				If !file( cDirLocal + cModelo ) .and. File(cDirServidor + cModelo)
+					CpyS2T( cDirServidor + cModelo, cDirLocal )
+				endif
+
+				if file(cDirLocal + cModelo)
+					oWord := OLE_CreateLink('TMSOLEWORD97')
+					OLE_SetProperty( oWord, oleWdVisible, .F. )
+					OLE_OPENFILE(oWord,cDirLocal + cModelo,.F.)
+
+					cNotaAtual		:= "NF_" + cNumNF
+					cNomeArq		:= "NF_" + cNumNF + "_LOTE_" + cNumLote + cTipoModel + "_certificado"
+					cArquivoDOC		:= cDirLocal + cNomeArq + EXTENSAO_DOC
+					cArquivoPDF		:= cDirLocal + cNomeArq + EXTENSAO_PDF
+
+					//Exclui Arquivos do pc local
+					excluiArquivo(cArquivoDOC)
+					excluiArquivo(cArquivoPDF)
+
+					//Exclui Arquivos do servidor
+					excluiArquivo(cDirServDest + cNomeArq + EXTENSAO_DOC)
+					excluiArquivo(cDirServDest + cNomeArq + EXTENSAO_PDF)
+
+					if aDadosImprime[nDadosImp,POS_MODELO] == MODELO_AUTOM
+						geraCabecalhoAutomotivo(aDadosImprime[nDadosImp] )
+						geraItensAutomotivo( aDadosImprime[nDadosImp,POS_ITENS] )
+					else
+						geraCabecalhoDemais( aDadosImprime[nDadosImp] )
+						geraItensDemais( aDadosImprime[nDadosImp,POS_ITENS] )
+					endif
+
+					geraEmailsQualidade()
+					geraRodape( aDadosImprime[nDadosImp,POS_MODELO] )
+					OLE_UpDateFields( oWord )
+
+					OLE_SaveAsFile( oWord, cDirLocal + cNomeArq,'','',.F.,FORMATO_DOC )
+					OLE_SaveAsFile( oWord, cDirLocal + cNomeArq,'','',.F.,FORMATO_PDF )
+
+					OLE_CloseFile( oWord )
+					OLE_CloseLink( oWord )
+
+					CPYT2S( cArquivoDOC, cDirServDest )
+					CPYT2S( cArquivoPDF, cDirServDest )
+
+					//Exclui Arquivos do pc local
+					excluiArquivo(cArquivoDOC)
+					excluiArquivo(cArquivoPDF)
+
+					//Exclui o modelo do local
+					OLE_CLOSEFILE(oWord,cFechaDoc,.F.)//Vinicius
+					sleep(2000)//Vinicius
+					excluiArquivo(cDirLocal + cModelo)
+					sleep(2000)//vinicius
+					OLE_CLOSEFILE(oWord,cFechaDoc,.F.)//Vinicius
+					sleep(2000)//Vinicius
+					excluiArquivo(cDirLocal + cModelo)
+					sleep(2000)//vinicius
+				endif
+			next
+
+			if len(aDadosImprime) > 0
+				if Alltrim(SA1->A1_ZZCQMOD) == GERA_PACKINGLIST .or. Alltrim(SA1->A1_ZZCQMOD) == GERA_PACKDETALHA
+					geraPackingList(cNumNF,aDadosImprime[1,POS_NUMPEDIDO])
+				endif
+
+				if Alltrim(SA1->A1_ZZCQMOD) == GERA_PACKDETALHA
+					aDadosDetalhes		:= montaItensDoDetalhado(SF2->F2_FILIAL,SF2->F2_DOC)
+					for nDadosImp := 1 to len(aDadosDetalhes)
+						geraDetalhado(aDadosDetalhes[nDadosImp],aDadosDetalhes[nDadosImp,POS_DET_ENSAIO])
+					next
+				endif
+
+				if alltrim(SA1->A1_ZZCQEMA) == 'S' .and. !empty(cEmailDest) .and. !empty(cNotaAtual)
+					aArquivos			:= Directory( cDirServDest + cNotaAtual + "*.pdf" , "D" )
+					for nArquivos := 1 to len(aArquivos)
+						if file(cDirServDest + aArquivos[nArquivos,1])
+							aAdd( aAnexos , cDirServDest + aArquivos[nArquivos,1] )
+						endif
+					next
+
+					if len(aAnexos) > 0 .and. lEnviMail
+						U_fEnviaArqMail(cEmailDest,"Certificado de Qualidade - NF " + SF2->F2_DOC,"",aAnexos)
+					endif
+				endif
+			endif
+		endif
+	endif
+
+	restArea(aAreaSA1)
+	restArea(aAreaSF2)
+
+return
+
+//-----------------------------------------------------------------
+static Function criaDiretorios()
+
+	cDirServDest	:= cDirServidor + "filial_" + AllTrim(SF2->F2_FILIAL) + "\"
+
+	If !ExistDir(cDirServDest)
+		MakeDir(cDirServDest)
+	endif
+
+	cDirServDest		+= "ano_" + cValToChar(Year(SF2->F2_EMISSAO)) + "\"
+
+	If !ExistDir(cDirServDest)
+		MakeDir(cDirServDest)
+	endif
+
+	cDirServDest		+= "mes_" + StrZero(Month(SF2->F2_EMISSAO),2) + "\"
+
+	If !ExistDir(cDirServDest)
+		MakeDir(cDirServDest)
+	endif
+
+return
+
+//-----------------------------------------------------------------
+static Function excluiArquivo(cArqComplet)
+
+	if file(cArqComplet)
+		Ferase(cArqComplet)
+	endif
+return
+
+//-----------------------------------------------------------------
+static Function limpaArquivosAntigos(cNotaAtual)
+
+	local aOldFiles			:= {}
+	local nOldFile			:= 0
+
+	aOldFiles			:= Directory( cDirServDest + "*" + cNotaAtual + "*.*" , "D" )
+	for nOldFile := 1 to len(aOldFiles)
+		if file(cDirServDest + aOldFiles[nOldFile,1])
+			excluiArquivo(cDirServDest + aOldFiles[nOldFile,1])
+		endif
+	next
+
+return
+
+//-----------------------------------------------------------------
+static Function geraCabecalhoAutomotivo(aDadosCabec)
+
+	local cCodDoCliente					:= ""
+
+	/*
+	OLE_SetDocumentVar( oWord,  'wA1_NOME',         SA1->A1_NOME )
+	OLE_SetDocumentVar( oWord,  'wF2_DOC',          SF2->F2_DOC )
+	OLE_SetDocumentVar( oWord,  'wF2_EMISSAO',      DTOC(SF2->F2_EMISSAO) )
+	OLE_SetDocumentVar( oWord,  'wB1_DESC',         cDescProd )
+	OLE_SetDocumentVar( oWord,  'wLOTE_PARAFIX',    cLote )
+	OLE_SetDocumentVar( oWord,  'wQUANTIDADE',      cValToChar(nQtdProd) + " " + cUnidMed )
+	OLE_SetDocumentVar( oWord,  'wCODCLIENTE',      SA1->A1_COD )
+	OLE_SetDocumentVar( oWord,  'wECN',             cECN )
+	*/
+
+	cCodDoCliente		:= AllTrim( Posicione("SB1",1,FwXFilial("SB1") + AvKey( aDadosCabec[POS_CODPRO], "B1_COD"), "B1_ZZCLI" ) )
+
+	OLE_SetDocumentVar( oWord,  'wA1_NOME',         SA1->A1_NOME )
+	OLE_SetDocumentVar( oWord,  'wF2_DOC',          SF2->F2_DOC )
+	OLE_SetDocumentVar( oWord,  'wB1_DESC',         aDadosCabec[POS_DESPRO] )
+	OLE_SetDocumentVar( oWord,  'wLOTE_PARAFIX',    aDadosCabec[POS_LOTE] )
+	OLE_SetDocumentVar( oWord,  'wQUANTIDADE',      cValToChar(aDadosCabec[POS_QTDPRO]) + " " + aDadosCabec[POS_UNIDMED] )
+
+	if lImpSegundUM
+		OLE_SetDocumentVar( oWord,  'wQTD2UM',      	convQuant( aDadosCabec[POS_QTD2PRO], aDadosCabec[POS_2UNIDMED], .F. ) + " " + aDadosCabec[POS_2UNIDMED] )
+	endif
+
+	if lInfProd
+		If !empty( aDadosCabec[POS_INFADPRD] )
+			OLE_SetDocumentVar( oWord,  'wINFADPRD',      	'** ' + aDadosCabec[POS_INFADPRD] )
+		else
+			OLE_SetDocumentVar( oWord,  'wINFADPRD',      	'' )
+		endif
+	endif
+
+	OLE_SetDocumentVar( oWord,  'wECN',             aDadosCabec[POS_ECN] )
+	OLE_SetDocumentVar( oWord,  'wCODCLIENTE',      cCodDoCliente )
+
+	OLE_SetDocumentVar( oWord,  'wDFAB_INI',         aDadosCabec[POS_DFAB_INI] )
+	OLE_SetDocumentVar( oWord,  'wDFAB_FIM',         aDadosCabec[POS_DFAB_FIM] )
+	OLE_SetDocumentVar( oWord,  'wDVLD_INI',         aDadosCabec[POS_DVLD_INI] )
+	OLE_SetDocumentVar( oWord,  'wDVLD_FIM',         aDadosCabec[POS_DVLD_FIM] )
+
+return
+
+//-----------------------------------------------------------------
+static Function geraCabecalhoDemais( aDadosCabec )
+
+	local cNumeroNota			:= iif("PT" $ allTrim(cIdioma),SF2->F2_DOC,SF2->F2_HAWB)
+	local cPedCli				:= ""
+	Local cQuery      			:= "SELECT EE7_REFIMP FROM EE7010 WHERE D_E_L_E_T_ ='' AND EE7_PEDFAT = '"+ALLTRIM(cNumeroNota)+"'"
+	
+	TcQuery cQuery New Alias "QRY"
+
+	dbSelectArea("QRY")
+	cPedCli := ALLTRIM(QRY->EE7_REFIMP)
+	QRY->(dbCloseArea()) //Fecha a Area de trabalho
+
+
+
+	OLE_SetDocumentVar( oWord,  'wA1_NOME',         SA1->A1_NOME )
+	//OLE_SetDocumentVar( oWord,  'wF2_DOC',          SF2->F2_DOC )
+	OLE_SetDocumentVar( oWord,  'wF2_DOC',          cNumeroNota )
+	OLE_SetDocumentVar( oWord,  'wPedcli',          	cPedCli )
+	OLE_SetDocumentVar( oWord,  'wB1_DESC',         aDadosCabec[POS_DESPRO] )
+	OLE_SetDocumentVar( oWord,  'wLOTE_PARAFIX',    aDadosCabec[POS_LOTE] )
+	OLE_SetDocumentVar( oWord,  'wQUANTIDADE',      cValToChar(aDadosCabec[POS_QTDPRO]) + " " + aDadosCabec[POS_UNIDMED] )
+
+	if lImpSegundUM
+		OLE_SetDocumentVar( oWord,  'wQTD2UM',      	convQuant( aDadosCabec[POS_QTD2PRO], aDadosCabec[POS_2UNIDMED], .F. ) + " " + aDadosCabec[POS_2UNIDMED] )
+	endif
+
+	OLE_SetDocumentVar( oWord,  'wDFAB_INI',         aDadosCabec[POS_DFAB_INI] )
+	OLE_SetDocumentVar( oWord,  'wDFAB_FIM',         aDadosCabec[POS_DFAB_FIM] )
+	OLE_SetDocumentVar( oWord,  'wDVLD_INI',         aDadosCabec[POS_DVLD_INI] )
+	OLE_SetDocumentVar( oWord,  'wDVLD_FIM',         aDadosCabec[POS_DVLD_FIM] )
+
+	if lInfProd
+		If !empty( aDadosCabec[POS_INFADPRD] )
+			OLE_SetDocumentVar( oWord,  'wINFADPRD',      	'** ' + aDadosCabec[POS_INFADPRD] )
+		else
+			OLE_SetDocumentVar( oWord,  'wINFADPRD',      	'' )
+		endif
+	endif
+
+return
+
+//-----------------------------------------------------------------
+static Function geraItensAutomotivo(aDados)
+
+	local nItem         := 0
+	local nQtdItens     := 0
+	local cUnidade		:= ""
+
+	for nItem := 1 to len(aDados)
+		nQtdItens++
+		cUnidade		:= Posicione("SAH",1,FwXFilial("SAH") + AllTrim( aDados[nItem,POS_UNIDADE] ),"AH_ZQUAL")
+		OLE_SetDocumentVar( oWord,  'wIT_PARAM' + alltrim(Str(nItem)),          aDados[nItem,POS_TESTE] )
+		OLE_SetDocumentVar( oWord,  'wIT_UNIDADE' + alltrim(Str(nItem)),        cUnidade )
+		OLE_SetDocumentVar( oWord,  'wIT_ESP_MIN' + alltrim(Str(nItem)),        aDados[nItem,POS_ESP_MIN] )
+		OLE_SetDocumentVar( oWord,  'wIT_ESP_MAX' + alltrim(Str(nItem)),        aDados[nItem,POS_ESP_MAX] )
+		OLE_SetDocumentVar( oWord,  'wIT_RES_MIN' + alltrim(Str(nItem)),        aDados[nItem,POS_RES_MIN] )
+		OLE_SetDocumentVar( oWord,  'wIT_RES_MAX' + alltrim(Str(nItem)),        aDados[nItem,POS_RES_MAX] )
+		OLE_SetDocumentVar( oWord,  'wIT_STATUS' + alltrim(Str(nItem)),         aDados[nItem,POS_STATUS] )
+	next
+
+	OLE_SetDocumentVar( oWord, 'QtdePro', cValToChar(nQtdItens))
+	OLE_ExecuteMacro( oWord, "tabItens")
+
+return
+
+//-----------------------------------------------------------------
+static Function geraItensDemais(aDados)
+
+	local nItem         := 0
+	local nQtdItens     := 0
+	local cUnidade		:= ""
+
+	for nItem := 1 to len(aDados)
+		nQtdItens++
+		cUnidade		:= Posicione("SAH",1,FwXFilial("SAH") + AllTrim( aDados[nItem,POS_UNIDADE] ),"AH_ZQUAL")
+		OLE_SetDocumentVar( oWord,  'wIT_PARAM' + alltrim(Str(nItem)),          aDados[nItem,POS_TESTE] )
+		OLE_SetDocumentVar( oWord,  'wIT_UNIDADE' + alltrim(Str(nItem)),        cUnidade )
+		OLE_SetDocumentVar( oWord,  'wIT_ESP_MIN' + alltrim(Str(nItem)),        aDados[nItem,POS_ESP_MIN] )
+		OLE_SetDocumentVar( oWord,  'wIT_ESP_MAX' + alltrim(Str(nItem)),        aDados[nItem,POS_ESP_MAX] )
+		OLE_SetDocumentVar( oWord,  'wIT_RESULT' + alltrim(Str(nItem)),         aDados[nItem,POS_RESULTA] )
+		OLE_SetDocumentVar( oWord,  'wIT_STATUS' + alltrim(Str(nItem)),         aDados[nItem,POS_STATUS] )
+	next
+
+	OLE_SetDocumentVar( oWord, 'QtdeTestesDemais', cValToChar(nQtdItens))
+	OLE_ExecuteMacro( oWord, "tabTestesDemais")
+
+return
+
+//-----------------------------------------------------------------
+static Function geraEmailsQualidade()
+
+	local nItem         := 0
+	local nQtdItens     := 10
+	local cEmail		:= ""
+	local nQtdEmails	:= 0
+
+	for nItem := 1 to nQtdItens
+		cEmail		:= GetNewPar("ZZ_CQMAI" + StrZero(nItem,2),"")
+		if !empty(cEmail)
+			nQtdEmails++
+			OLE_SetDocumentVar( oWord,  'wIT_EMAIL' + alltrim(Str(nItem)),          cEmail )
+		endif
+	next
+
+	OLE_SetDocumentVar( oWord, 'QtdeMails', cValToChar(nQtdEmails))
+	OLE_ExecuteMacro( oWord, "tabEmails")
+
+return
+
+//-----------------------------------------------------------------
+static Function itensDetalhado(aItemDetalhes,oWordPackingList)
+
+	local nValAtual		:= 0
+	local nQtdItens     := 0
+	local nMedia		:= 0
+	local nMaximo 		:= 0
+	local nMinimo		:= 0
+	local nTotal		:= 0
+	local nLinhas		:= 0
+
+	for nQtdItens := 1 to len(aItemDetalhes[POS_DET_RESULT])
+		nValAtual	:= Val( StrTran( aItemDetalhes[POS_DET_RESULT,nQtdItens] ,",",".") )
+		nTotal		+= nValAtual
+		nMedia		:= Round(nTotal / nQtdItens,2)
+
+		if nQtdItens == 1
+			nMaximo		:= nValAtual
+			nMinimo		:= nValAtual
+			nMedia		:= nValAtual
+		endif
+
+		if nValAtual > nMaximo
+			nMaximo		:= nValAtual
+		endif
+
+		if nValAtual < nMinimo
+			nMinimo		:= nValAtual
+		endif
+
+		OLE_SetDocumentVar( oWordPackingList,  'wLOTEOP' + alltrim(Str(nQtdItens)),			aItemDetalhes[POS_DET_OP] )
+		OLE_SetDocumentVar( oWordPackingList,  'wITEM' + alltrim(Str(nQtdItens)),			aItemDetalhes[POS_DET_PRODUT] )
+		OLE_SetDocumentVar( oWordPackingList,  'wDESCRI' + alltrim(Str(nQtdItens)),			aItemDetalhes[POS_DET_DESCPRO] )
+		OLE_SetDocumentVar( oWordPackingList,  'wENSAIO' + alltrim(Str(nQtdItens)),			aItemDetalhes[POS_DET_ENSAIO] )
+		OLE_SetDocumentVar( oWordPackingList,  'wVALUE' + alltrim(Str(nQtdItens)),			nValAtual )
+		nLinhas++
+	next
+
+	OLE_SetDocumentVar( oWordPackingList,  'nMinimo',		nMinimo )
+	OLE_SetDocumentVar( oWordPackingList,  'nMaximo',		nMaximo )
+	OLE_SetDocumentVar( oWordPackingList,  'nMedia',		nMedia )
+
+	OLE_SetDocumentVar( oWordPackingList, 'QtdeItensDet', cValToChar(nLinhas))
+	OLE_ExecuteMacro( oWordPackingList, "tabNovosDetalhado")
+
+return
+
+//-----------------------------------------------------------------
+static Function itensPackingList(oWordPackingList)
+
+	local cOPDoItem		:= ""
+	local cOPItemAnt	:= ""
+	local nQtdItens     := 0
+	local aAreaSD2		:= SD2->(GetArea())
+	local aAreaSB1		:= SB1->(GetArea())
+	local aAreaSB8		:= SB8->(GetArea())
+	local nTotal1		:= 0
+	local nTotal2		:= 0
+
+	local nDiasValid	:= 0
+	local dDataFabIni	:= stod("")
+	local dDataFabFim	:= stod("")
+	local dDataValidIni	:= stod("")
+	local dDataValidFim	:= stod("")
+
+	SD2->(DbSetOrder(3)) //D2_FILIAL+D2_DOC+D2_SERIE+D2_CLIENTE+D2_LOJA+D2_COD+D2_ITEM
+	SD2->(DbSeek( SF2->(F2_FILIAL+F2_DOC+F2_SERIE+F2_CLIENTE+F2_LOJA) ))
+
+	while SD2->(!Eof()) .and. SD2->(D2_FILIAL+D2_DOC+D2_SERIE+D2_CLIENTE+D2_LOJA) == SF2->(F2_FILIAL+F2_DOC+F2_SERIE+F2_CLIENTE+F2_LOJA) .and. SD2->D2_TP <> 'ME'
+		SB1->(DbSetOrder(1)) //B1_FILIAL+B1_COD
+		SB8->(DbSetOrder(3)) //B8_FILIAL+B8_PRODUTO+B8_LOCAL+B8_LOTECTL+B8_NUMLOTE+DTOS(B8_DTVALID)
+
+		SB1->(DbSeek( FwXFilial("SB1") + SD2->D2_COD ))
+		SB8->(DbSeek( FwXFilial("SB8") + SD2->D2_COD + SD2->D2_LOCAL + SD2->D2_LOTECTL ))
+
+		nQtdItens++
+		cOPDoItem			:= allTrim(retOPdoLote(SD2->D2_FILIAL,SD2->D2_LOTECTL,SD2->D2_COD))
+		if nQtdItens == 1
+			cOPItemAnt		:= cOPDoItem
+		endif
+
+		if cOPDoItem <> cOPItemAnt
+			cOPItemAnt		:= cOPDoItem
+			OLE_SetDocumentVar( oWordPackingList,  'wLOTEOP' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wLOTEPALETE' + alltrim(Str(nQtdItens)),		"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wFABINI' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wFABFIM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wVLDINI' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wVLDFIM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wITEM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wDESCRI' + alltrim(Str(nQtdItens)),			"TOTAL =>" )
+			OLE_SetDocumentVar( oWordPackingList,  'wQTDE' + alltrim(Str(nQtdItens)),			Round(nTotal1,2) )
+			OLE_SetDocumentVar( oWordPackingList,  'w1UM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wQTD2' + alltrim(Str(nQtdItens)),			Round(nTotal2,2) )
+			OLE_SetDocumentVar( oWordPackingList,  'w2UM' + alltrim(Str(nQtdItens)),			"" )
+
+			nTotal1	:= 0
+			nTotal2 := 0
+			nQtdItens++
+		endif
+
+		nDiasValid		:= Posicione("SB1",1,FwXFilial("SB1") + AllTrim( SB1->B1_COD ),"B1_PRVALID")
+
+		dDataFabIni		:= DTOC(retMenorDataFabric(cOPDoItem,SB1->B1_COD))
+		dDataFabFim		:= DTOC(retMaiorDataFabric(cOPDoItem,SB1->B1_COD))
+		sequencDatas( @dDataFabIni , @dDataFabFim )
+
+		dDataValidIni	:= DTOC(DaySum( CTOD( dDataFabIni ) , nDiasValid ))
+		dDataValidFim	:= DTOC(DaySum( CTOD( dDataFabFim ) , nDiasValid ))
+		
+		sequencDatas( @dDataValidIni , @dDataValidFim )
+
+		OLE_SetDocumentVar( oWordPackingList,  'wLOTEOP' + alltrim(Str(nQtdItens)),			cOPDoItem )
+		OLE_SetDocumentVar( oWordPackingList,  'wLOTEPALETE' + alltrim(Str(nQtdItens)),		SD2->D2_LOTECTL )
+		OLE_SetDocumentVar( oWordPackingList,  'wFABINI' + alltrim(Str(nQtdItens)),			dDataFabIni )
+		OLE_SetDocumentVar( oWordPackingList,  'wFABFIM' + alltrim(Str(nQtdItens)),			dDataFabFim )
+		OLE_SetDocumentVar( oWordPackingList,  'wVLDINI' + alltrim(Str(nQtdItens)),			dDataValidIni )
+		OLE_SetDocumentVar( oWordPackingList,  'wVLDFIM' + alltrim(Str(nQtdItens)),			dDataValidFim )
+		OLE_SetDocumentVar( oWordPackingList,  'wITEM' + alltrim(Str(nQtdItens)),			SD2->D2_COD )
+		OLE_SetDocumentVar( oWordPackingList,  'wDESCRI' + alltrim(Str(nQtdItens)),			SB1->B1_DESC )
+		OLE_SetDocumentVar( oWordPackingList,  'wQTDE' + alltrim(Str(nQtdItens)),			SD2->D2_QUANT )
+		OLE_SetDocumentVar( oWordPackingList,  'w1UM' + alltrim(Str(nQtdItens)),			SD2->D2_UM )
+		OLE_SetDocumentVar( oWordPackingList,  'wQTD2' + alltrim(Str(nQtdItens)),			SD2->D2_QTSEGUM )
+		OLE_SetDocumentVar( oWordPackingList,  'w2UM' + alltrim(Str(nQtdItens)),			SD2->D2_SEGUM )
+		nTotal1 	+= SD2->D2_QUANT
+		nTotal2 	+= SD2->D2_QTSEGUM
+		SD2->(DbSkip())
+
+		If SD2->(EOF()) .or. SD2->(D2_FILIAL+D2_DOC+D2_SERIE+D2_CLIENTE+D2_LOJA) <> SF2->(F2_FILIAL+F2_DOC+F2_SERIE+F2_CLIENTE+F2_LOJA)
+			nQtdItens++
+			OLE_SetDocumentVar( oWordPackingList,  'wLOTEOP' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wLOTEPALETE' + alltrim(Str(nQtdItens)),		"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wFABINI' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wFABFIM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wVLDINI' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wVLDFIM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wITEM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wDESCRI' + alltrim(Str(nQtdItens)),			"TOTAL =>" )
+			OLE_SetDocumentVar( oWordPackingList,  'wQTDE' + alltrim(Str(nQtdItens)),			Round(nTotal1,2) )
+			OLE_SetDocumentVar( oWordPackingList,  'w1UM' + alltrim(Str(nQtdItens)),			"" )
+			OLE_SetDocumentVar( oWordPackingList,  'wQTD2' + alltrim(Str(nQtdItens)),			Round(nTotal2,2) )
+			OLE_SetDocumentVar( oWordPackingList,  'w2UM' + alltrim(Str(nQtdItens)),			"" )
+		endif
+	endDo
+
+	OLE_SetDocumentVar( oWordPackingList, 'QtdeItensDetalhado', cValToChar(nQtdItens))
+	OLE_ExecuteMacro( oWordPackingList, "tabDetalhado")
+
+	restArea(aAreaSB8)
+	restArea(aAreaSB1)
+	restArea(aAreaSD2)
+
+return
+
+
+//-----------------------------------------------------------------
+static Function geraRodape(cModelo)
+
+	OLE_SetDocumentVar( oWord,  'wCNPJ_EMP',            alltrim(transform(SM0->M0_CGC,"@R 99.999.999/9999-99")) )
+	OLE_SetDocumentVar( oWord,  'wINSC_EST',            SM0->M0_INSC )
+	OLE_SetDocumentVar( oWord,  'wINSC_MUN',            SM0->M0_INSCM )
+	OLE_SetDocumentVar( oWord,  'wEND_EMPRESA',         SM0->M0_ENDCOB )
+
+	if cModelo == MODELO_DEMAIS
+		OLE_SetDocumentVar( oWord,  'wBAIRRO',         SM0->M0_BAIRCOB )
+	else
+		OLE_SetDocumentVar( oWord,  'wFAX_EMP',             SM0->M0_FAX )
+	endif
+
+	OLE_SetDocumentVar( oWord,  'wCEP_EMP',             alltrim(transform(SM0->M0_CEPCOB,"@R 99999-999")) )
+	OLE_SetDocumentVar( oWord,  'wMUN_EMP',             SM0->M0_CIDCOB )
+	OLE_SetDocumentVar( oWord,  'wEST_EMP',             SM0->M0_ESTCOB )
+	OLE_SetDocumentVar( oWord,  'wTEL_EMP',             SM0->M0_TEL )
+	OLE_SetDocumentVar( oWord,  'wSITE_EMP',            getnewpar("ZZ_CQMAIL","www.parafix.com.br") )
+
+return
+
+//-----------------------------------------------------------------
+static Function geraDetalhado(aItemDetalhes,cTipoEnsaio)
+
+	local oWordPackingList			:= nil
+	local cModelo					:= ""
+	local cNomeArq					:= ""
+	local cArquivoDOC				:= ""
+	local cArquivoPDF				:= ""
+	local cFechaDoc			:= ""//Vinicius
+
+	cModelo		:= "model_detalhamento.doc"
+
+	If !file( cDirLocal + cModelo ) .and. File(cDirServidor + cModelo)
+		CpyS2T( cDirServidor + cModelo, cDirLocal )
+	endif
+
+	if file(cDirLocal + cModelo)
+		oWordPackingList := OLE_CreateLink('TMSOLEWORD97')
+		OLE_SetProperty( oWordPackingList, oleWdVisible, .F. )
+		OLE_OPENFILE(oWordPackingList,cDirLocal + cModelo,.F.)
+
+		cNomeArq		:= "NF_" + alltrim(aItemDetalhes[POS_DET_NOTA]) + "_LOTE_" + alltrim(aItemDetalhes[POS_DET_OP]) + "_" + cTipoEnsaio + "_detalhe"
+		cArquivoDOC		:= cDirLocal + cNomeArq + EXTENSAO_DOC
+		cArquivoPDF		:= cDirLocal + cNomeArq + EXTENSAO_PDF
+
+		//Exclui Arquivos do pc local
+		excluiArquivo(cArquivoDOC)
+		excluiArquivo(cArquivoPDF)
+
+		//Exclui Arquivos do servidor
+		excluiArquivo(cDirServDest + cNomeArq + EXTENSAO_DOC)
+		excluiArquivo(cDirServDest + cNomeArq + EXTENSAO_PDF)
+
+		OLE_SetDocumentVar( oWordPackingList,  'numPedido',		aItemDetalhes[POS_DET_PEDIDO] )
+		OLE_SetDocumentVar( oWordPackingList,  'numNota',		aItemDetalhes[POS_DET_NOTA] )
+
+		itensDetalhado(aItemDetalhes,oWordPackingList)
+
+		OLE_UpDateFields( oWordPackingList )
+
+		OLE_SaveAsFile( oWordPackingList, cDirLocal + cNomeArq,'','',.F.,FORMATO_DOC )
+		OLE_SaveAsFile( oWordPackingList, cDirLocal + cNomeArq,'','',.F.,FORMATO_PDF )
+
+		OLE_CloseFile( oWordPackingList )
+		OLE_CloseLink( oWordPackingList )
+
+		CPYT2S( cArquivoDOC, cDirServDest )
+		CPYT2S( cArquivoPDF, cDirServDest )
+
+		//Exclui Arquivos do pc local
+		excluiArquivo(cArquivoDOC)
+		excluiArquivo(cArquivoPDF)
+
+		//Exclui o modelo do local
+		OLE_CLOSEFILE(oWordPackingList,cFechaDoc,.F.)//Vinicius
+		sleep(1500)//Vinicius
+		excluiArquivo(cDirLocal + cModelo)
+		sleep(1500)//vinicius
+		OLE_CLOSEFILE(ooWordPackingList,cFechaDoc,.F.)//Vinicius
+		sleep(1500)//Vinicius//Vinicius
+		excluiArquivo(cDirLocal + cModelo)//Vinicius
+		sleep(1500)//vinicius
+	endif
+
+return
+
+//-----------------------------------------------------------------
+static Function geraPackingList(cNumNF,cPedido)
+
+	local oWordPackingList			:= nil
+	local cModelo					:= ""
+	local cNomeArq					:= ""
+	local cArquivoDOC				:= ""
+	local cArquivoPDF				:= ""
+	local cFechaDoc			:= ""//Vinicius
+
+	//cModelo		:= "model_packinglist_det2.doc"
+	cModelo		:= "model_packinglist_novo.doc"
+
+	If !file( cDirLocal + cModelo ) .and. File(cDirServidor + cModelo)
+		CpyS2T( cDirServidor + cModelo, cDirLocal )
+	endif
+
+	if file(cDirLocal + cModelo)
+		oWordPackingList := OLE_CreateLink('TMSOLEWORD97')
+		OLE_SetProperty( oWordPackingList, oleWdVisible, .F. )
+		OLE_OPENFILE(oWordPackingList,cDirLocal + cModelo,.F.)
+
+		cNomeArq		:= "NF_" + cNumNF + "_packinglist"
+		cArquivoDOC		:= cDirLocal + cNomeArq + EXTENSAO_DOC
+		cArquivoPDF		:= cDirLocal + cNomeArq + EXTENSAO_PDF
+
+		//Exclui Arquivos do pc local
+		excluiArquivo(cArquivoDOC)
+		excluiArquivo(cArquivoPDF)
+
+		//Exclui Arquivos do servidor
+		excluiArquivo(cDirServDest + cNomeArq + EXTENSAO_DOC)
+		excluiArquivo(cDirServDest + cNomeArq + EXTENSAO_PDF)
+
+		OLE_SetDocumentVar( oWordPackingList,  'nomeCliente',		AllTrim(SA1->A1_NOME) )
+		OLE_SetDocumentVar( oWordPackingList,  'numPedido',			cPedido )
+		OLE_SetDocumentVar( oWordPackingList,  'numNota',			cNumNF )
+
+		itensPackingList(oWordPackingList)
+
+		OLE_UpDateFields( oWordPackingList )
+
+		OLE_SaveAsFile( oWordPackingList, cDirLocal + cNomeArq,'','',.F.,FORMATO_DOC )
+		OLE_SaveAsFile( oWordPackingList, cDirLocal + cNomeArq,'','',.F.,FORMATO_PDF )
+
+		OLE_CloseFile( oWordPackingList )
+		OLE_CloseLink( oWordPackingList )
+
+		CPYT2S( cArquivoDOC, cDirServDest )
+		CPYT2S( cArquivoPDF, cDirServDest )
+
+		//Exclui Arquivos do pc local
+		excluiArquivo(cArquivoDOC)
+		excluiArquivo(cArquivoPDF)
+
+		//Exclui o modelo do local
+		OLE_CLOSEFILE(oWordPackingList,cFechaDoc,.F.)//Vinicius
+		sleep(1500)//Vinicius
+		excluiArquivo(cDirLocal + cModelo)
+		sleep(1500)//vinicius
+		OLE_CLOSEFILE(oWordPackingList,cFechaDoc,.F.)//Vinicius
+		sleep(1500)//Vinicius//Vinicius
+		excluiArquivo(cDirLocal + cModelo)//Vinicius
+		sleep(1500)//vinicius
+	endif
+
+return
+
+//-----------------------------------------------------------------
+static Function retOPdoLote(cFil,cLoteCTL,cProduto)
+
+	local cQuery		:= ""
+	local cAlias		:= getnextalias()
+	local cOP			:= ""
+
+	cQuery += "SELECT " + CRLF
+	cQuery += "		D3_OP " + CRLF
+	cQuery += "FROM " + CRLF
+	cQuery += "		" + retsqltab("SD3") + CRLF
+	cQuery += "WHERE " + CRLF
+	cQuery += "		SD3.D_E_L_E_T_ = ' ' " + CRLF
+	cQuery += "		AND D3_FILIAL  = '" + cFil + "'" + CRLF
+	cQuery += "    	AND D3_LOTECTL     = '" + cLoteCTL + "'" + CRLF
+	cQuery += "		AND D3_COD = '" + cProduto + "'" + CRLF
+	cQuery += "		AND D3_CF = 'PR0'" + CRLF
+
+	tcquery cQuery new alias &cAlias
+
+	if (cAlias)->(!eof())
+		cOP			:= (cAlias)->D3_OP
+	endif
+
+return cOP
+
+//-----------------------------------------------------------------
+static Function montaQueryQualidade(cFilNf,cNumNF)
+
+	local nQtdDecimais		:= 2
+	local nPosicao			:= 0
+	local cQuery			:= ""
+	local aTmp				:= {}
+	local aDadosQualid		:= {}
+	local cAlias			:= getnextAlias()
+	local cPedido			:= ""
+	local cArquivoQuery		:= ""
+	local cECN				:= ""
+	local cProduto			:= ""
+	local cCodEnsaio		:= ""
+	local cDescProd			:= ""
+	local cLoteOP			:= ""
+	local cModelo			:= ""
+	local cUnidMed			:= ""
+	local cSegundUM			:= ""
+	local nQtdProd			:= 0
+	local nQtd2Prod			:= 0
+	local nDiasValid		:= 0
+	local cDataIniLote		:= ""
+	local cDataFimLote		:= ""
+	local cDataFabricIni	:= ""
+	local cDataFabricFim	:= ""
+	local cMinDtFabric		:= ""
+	local cMaxDtFabric		:= ""
+	local cInfAdProd		:= ""
+
+	cQuery += "SELECT" + CRLF
+	cQuery += "         'V' AS TIPO" + CRLF
+	cQuery += "       , X.B1_COD" + CRLF
+	cQuery += "       , X.B1_DESC" + CRLF
+	cQuery += "       , X.B1_ZZECN" + CRLF
+	cQuery += "       , X.QPR_PRODUT" + CRLF
+	cQuery += "       , X.BM_ZZCQLAU" + CRLF
+	cQuery += "       , X.QPR_REVI" + CRLF
+	cQuery += "       , X.QPR_LOTE" + CRLF
+	cQuery += "       , X.QP1_ENSAIO" + CRLF
+	cQuery += "       , X.QPR_OP" + CRLF
+	cQuery += "       , X.D2_DOC" + CRLF
+	cQuery += "       , X.D2_SERIE" + CRLF
+	cQuery += "       , X.D2_UM" + CRLF
+	cQuery += "       , X.D2_SEGUM" + CRLF
+	cQuery += "       , X.D2_PEDIDO " + CRLF
+	cQuery += "       , X.INF_PROD " + CRLF
+	cQuery += "       , X.QP1_DESCPO" + CRLF
+	cQuery += "       , X.QP7_UNIMED UNIDADE" + CRLF
+	cQuery += "       , X.QP7_NOMINA NOMINAL" + CRLF
+	cQuery += "       , X.QP7_LABOR" + CRLF
+	cQuery += "       , REPLACE(STR(AVG(CONVERT(DECIMAL(16," + cValToChar(nQtdDecimais) + "),(REPLACE(REPLACE(X.QPS_MEDICA,':',''), ',', '.' )))),16," + cValToChar(nQtdDecimais) + "),'.',',') RESULTADO" + CRLF
+	cQuery += "       , REPLACE(STR(MIN(CONVERT(DECIMAL(16," + cValToChar(nQtdDecimais) + "),(REPLACE(REPLACE(X.QPS_MEDICA,':',''), ',', '.' )))),16," + cValToChar(nQtdDecimais) + "),'.',',') RESULT_MIN" + CRLF
+	cQuery += "       , REPLACE(STR(MAX(CONVERT(DECIMAL(16," + cValToChar(nQtdDecimais) + "),(REPLACE(REPLACE(X.QPS_MEDICA,':',''), ',', '.' )))),16," + cValToChar(nQtdDecimais) + "),'.',',') RESULT_MAX" + CRLF
+	cQuery += "       , X.ESPECIFICACAO" + CRLF
+	cQuery += "       , X.ESP_MIN" + CRLF
+	cQuery += "       , X.ESP_MAX" + CRLF
+	cQuery += "FROM" + CRLF
+	cQuery += "         (" + CRLF
+	cQuery += "                    SELECT" + CRLF
+	cQuery += "                               B1_COD" + CRLF
+	cQuery += "                             , B1_DESC" + CRLF
+	cQuery += "                             , B1_ZZECN" + CRLF
+	cQuery += "                             , QPR_PRODUT" + CRLF
+	cQuery += "                             , CASE WHEN ISNULL(QQ7_ZZCQLA,BM_ZZCQLAU) = '' THEN BM_ZZCQLAU ELSE ISNULL(QQ7_ZZCQLA,BM_ZZCQLAU) END BM_ZZCQLAU" + CRLF
+	cQuery += "                             , QPR_REVI" + CRLF
+	cQuery += "                             , QPR_LOTE" + CRLF
+	cQuery += "                             , QP1_ENSAIO" + CRLF
+	cQuery += "                             , QP1_DESCPO" + CRLF
+	cQuery += "                             , QP7_UNIMED" + CRLF
+	cQuery += "                             , QP7_NOMINA" + CRLF
+	cQuery += "                             , QP7_LABOR" + CRLF
+	cQuery += "                             , QPS_MEDICA" + CRLF
+	cQuery += "                             , QPR_OP" + CRLF
+	cQuery += "                             , D2_DOC" + CRLF
+	cQuery += "                             , D2_SERIE" + CRLF
+	cQuery += "                             , D2_UM" + CRLF
+	cQuery += "                             , D2_SEGUM" + CRLF
+	cQuery += "                             , D2_PEDIDO" + CRLF
+	cQuery += "                             , ISNULL(QPB_DESCRI,'') INF_PROD" + CRLF
+	cQuery += "                             , CASE" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '1'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_LIE)+' - '+ RTRIM(QP7_LSE)" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '2'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_LIE) +' - '+ RTRIM(QP7_NOMINA)" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '3'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_NOMINA) +' - '+ RTRIM(QP7_LSE)" + CRLF
+	cQuery += "                               END AS ESPECIFICACAO" + CRLF
+	cQuery += "                             , CASE" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '1'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_LIE)" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '2'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_LIE)" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '3'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_NOMINA)" + CRLF
+	cQuery += "                               END AS ESP_MIN" + CRLF
+	cQuery += "                             , CASE" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '1'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_LSE)" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '2'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_NOMINA)" + CRLF
+	cQuery += "                                          WHEN QP7_MINMAX = '3'" + CRLF
+	cQuery += "                                                     THEN RTRIM(QP7_LSE)" + CRLF
+	cQuery += "                               END AS ESP_MAX" + CRLF
+	cQuery += "                    FROM" + CRLF
+	cQuery += "                               " + retsqltab("SD2") + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("SB1") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  =1" + CRLF
+	cQuery += "                                                     AND B1_COD         = D2_COD" + CRLF
+	cQuery += "                                                     AND SB1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               LEFT JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("QPB") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  =1" + CRLF
+	cQuery += "                                                     AND QPB_FILIAL		= B1_FILIAL" + CRLF
+	cQuery += "                                                     AND QPB_PRODUT		= B1_COD" + CRLF
+	cQuery += "                                                     AND QPB.D_E_L_E_T_ = ' ' " + CRLF
+	cQuery += "           					INNER JOIN" + CRLF
+	cQuery += "                      					" + retsqltab("SB8") + CRLF
+	cQuery += "                      					ON" + CRLF
+	cQuery += "                                 					1                  =1" + CRLF
+	cQuery += "                                 					AND B8_FILIAL      = D2_FILIAL" + CRLF
+	cQuery += "                                 					AND B8_PRODUTO     = D2_COD" + CRLF
+	cQuery += "                                 					AND B8_LOTECTL     = D2_LOTECTL " + CRLF
+	cQuery += "                                 					AND SB8.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("SBM") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  =1" + CRLF
+	cQuery += "                                                     AND BM_GRUPO         = B1_GRUPO" + CRLF
+	cQuery += "                                                     AND SBM.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("SD3") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     D3_FILIAL          = D2_FILIAL" + CRLF
+	cQuery += "                                                     AND D3_COD         = D2_COD" + CRLF
+	cQuery += "                                                     AND D3_LOTECTL     = D2_LOTECTL" + CRLF
+	cQuery += "                                                     AND D3_CF          = 'PR0'" + CRLF
+	cQuery += "                                                     AND SD3.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("QPR") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  =1" + CRLF
+	cQuery += "                                                     AND QPR_PRODUT     = B1_COD" + CRLF
+	cQuery += "                                                     AND QPR_OP         = D3_OP" + CRLF
+	cQuery += "                                                     AND QPR_RESULT     = 'A' " + CRLF
+	cQuery += "                                                     AND QPR.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("QPS") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  = 1" + CRLF
+	cQuery += "                                                     AND QPS_FILIAL     = QPR_FILIAL" + CRLF
+	cQuery += "                                                     AND QPS_CODMED     = QPR_CHAVE" + CRLF
+	cQuery += "                                                     AND QPS.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("QP7") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  = 1" + CRLF
+	cQuery += "                                                     AND QP7.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                                     AND QP7_PRODUT     = QPR_PRODUT" + CRLF
+	cQuery += "                                                     AND QP7_ENSAIO     = QPR_ENSAIO" + CRLF
+	cQuery += "                                                     AND QP7_REVI       = QPR_REVI" + CRLF
+	cQuery += "                                                     AND QP7_CODREC     = QPR_ROTEIR" + CRLF
+	cQuery += "                                                     AND QP7_OPERAC     = QPR_OPERAC" + CRLF
+	cQuery += "                                                     AND QP7_CERTIF     = 'S'" + CRLF
+	cQuery += "                               INNER JOIN" + CRLF
+	cQuery += "                                          " + retsqltab("QP1") + CRLF
+	cQuery += "                                          ON" + CRLF
+	cQuery += "                                                     1                  = 1" + CRLF
+	cQuery += "                                                     AND QP1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                                     AND QP1_ENSAIO     = QPR_ENSAIO" + CRLF
+	cQuery += "           					LEFT JOIN" + CRLF
+	cQuery += "                      					" + retsqltab("QQ7") + CRLF
+	cQuery += "                      					ON" + CRLF
+	cQuery += "                                 					1                  = 1" + CRLF
+	cQuery += "                                 					AND QQ7.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                 					AND QQ7_PRODUT = QPR_PRODUT" + CRLF
+	cQuery += "                                 					AND QQ7_CLIENT = D2_CLIENTE" + CRLF
+	cQuery += "                                 					AND QQ7_LOJA = D2_LOJA" + CRLF
+	cQuery += "                                 					AND QQ7_ENSAIO = QP1_ENSAIO" + CRLF
+	cQuery += "                    WHERE" + CRLF
+	cQuery += "                               SD2.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                               AND BM_ZZCQLAU <> ' ' " + CRLF
+	cQuery += "                               AND D2_FILIAL  = '" + cFilNF + "'" + CRLF
+	cQuery += "                               AND D2_DOC     = '" + cNumNF + "'" + CRLF
+	cQuery += "         )" + CRLF
+	cQuery += "         X" + CRLF
+	cQuery += "GROUP BY" + CRLF
+	cQuery += "         X.B1_COD" + CRLF
+	cQuery += "       , X.B1_DESC" + CRLF
+	cQuery += "       , X.B1_ZZECN" + CRLF
+	cQuery += "       , X.QPR_PRODUT" + CRLF
+	cQuery += "       , X.BM_ZZCQLAU" + CRLF
+	cQuery += "       , X.QPR_REVI" + CRLF
+	cQuery += "       , X.QPR_LOTE" + CRLF
+	cQuery += "       , X.QP1_ENSAIO" + CRLF
+	cQuery += "       , X.QPR_OP" + CRLF
+	cQuery += "       , X.D2_DOC" + CRLF
+	cQuery += "       , X.D2_SERIE" + CRLF
+	cQuery += "       , X.D2_UM" + CRLF
+	cQuery += "       , X.D2_SEGUM" + CRLF
+	cQuery += "       , X.D2_PEDIDO" + CRLF
+	cQuery += "       , X.INF_PROD " + CRLF
+	cQuery += "       , X.QP1_DESCPO" + CRLF
+	cQuery += "       , X.QP7_UNIMED" + CRLF
+	cQuery += "       , X.QP7_NOMINA" + CRLF
+	cQuery += "       , X.QP7_LABOR" + CRLF
+	cQuery += "       , X.ESPECIFICACAO" + CRLF
+	cQuery += "       , X.ESP_MIN" + CRLF
+	cQuery += "       , X.ESP_MAX" + CRLF
+	cQuery += "UNION ALL" + CRLF
+	cQuery += "SELECT" + CRLF
+	cQuery += "           'T' AS TIPO" + CRLF
+	cQuery += "         , B1_COD" + CRLF
+	cQuery += "         , B1_DESC" + CRLF
+	cQuery += "         , B1_ZZECN" + CRLF
+	cQuery += "         , QPR_PRODUT" + CRLF
+	cQuery += "         , CASE WHEN ISNULL(QQ7_ZZCQLA,BM_ZZCQLAU) = '' THEN BM_ZZCQLAU ELSE ISNULL(QQ7_ZZCQLA,BM_ZZCQLAU) END BM_ZZCQLAU" + CRLF
+	cQuery += "         , QPR_REVI" + CRLF
+	cQuery += "         , QPR_LOTE" + CRLF
+	cQuery += "         , QP1_ENSAIO" + CRLF
+	cQuery += "         , QPR_OP" + CRLF
+	cQuery += "         , D2_DOC" + CRLF
+	cQuery += "         , D2_SERIE" + CRLF
+	cQuery += "         , D2_UM" + CRLF
+	cQuery += "         , D2_SEGUM" + CRLF
+	cQuery += "         , D2_PEDIDO " + CRLF
+	cQuery += "         , ISNULL(QPB_DESCRI,'') INF_PROD " + CRLF
+	cQuery += "         , QP1_DESCPO" + CRLF
+	cQuery += "         , 'NA' UNIDADE" + CRLF
+	cQuery += "         , ''   NOMINAL" + CRLF
+	cQuery += "         , QP8_LABOR" + CRLF
+	cQuery += "         , QPQ_MEDICA RESULTADO" + CRLF
+	cQuery += "         , QPQ_MEDICA RESULT_MIN" + CRLF
+	cQuery += "         , QPQ_MEDICA RESULT_MAX" + CRLF
+	cQuery += "         , QP8_TEXTO  ESPECIFICACAO" + CRLF
+	cQuery += "         , ''  ESP_MIN " + CRLF
+	cQuery += "         , ''  ESP_MAX " + CRLF
+	cQuery += "FROM" + CRLF
+	cQuery += "           " + retsqltab("SD2") + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("SB1") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  =1" + CRLF
+	cQuery += "                                 AND B1_COD         = D2_COD" + CRLF
+	cQuery += "                                 AND SB1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("SB8") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  =1" + CRLF
+	cQuery += "                                 AND B8_FILIAL      = D2_FILIAL" + CRLF
+	cQuery += "                                 AND B8_PRODUTO     = D2_COD" + CRLF
+	cQuery += "                                 AND B8_LOTECTL     = D2_LOTECTL " + CRLF
+	cQuery += "                                 AND SB8.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "				INNER JOIN" + CRLF
+	cQuery += "							" + retsqltab("SBM") + CRLF
+	cQuery += "						ON" + CRLF
+	cQuery += "									1                  =1" + CRLF
+	cQuery += "									AND BM_GRUPO         = B1_GRUPO" + CRLF
+	cQuery += "									AND SBM.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("SD3") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 D3_FILIAL          = D2_FILIAL" + CRLF
+	cQuery += "                                 AND D3_COD         = D2_COD" + CRLF
+	cQuery += "                                 AND D3_LOTECTL     = D2_LOTECTL" + CRLF
+	cQuery += "                                 AND D3_CF          = 'PR0'" + CRLF
+	cQuery += "                                 AND SD3.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("QPR") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  =1" + CRLF
+	cQuery += "                                 AND QPR_PRODUT     = B1_COD" + CRLF
+	cQuery += "                                 AND QPR_OP         = D3_OP" + CRLF
+	cQuery += "                                 AND QPR_RESULT     = 'A' " + CRLF
+	cQuery += "                                 AND QPR.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("QP1") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  = 1" + CRLF
+	cQuery += "                                 AND QP1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                 AND QP1_ENSAIO     = QPR_ENSAIO" + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("QP8") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  = 1" + CRLF
+	cQuery += "                                 AND QP8.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                 AND QP8_PRODUT     = QPR_PRODUT" + CRLF
+	cQuery += "                                 AND QP8_ENSAIO     = QPR_ENSAIO" + CRLF
+	cQuery += "                                 AND QP8_REVI       = QPR_REVI" + CRLF
+	cQuery += "                                 AND QP8_CODREC     = QPR_ROTEIR " + CRLF
+	cQuery += "                                 AND QP8_OPERAC     = QPR_OPERAC " + CRLF
+	cQuery += "                                 AND QP8_CERTIF     = 'S'" + CRLF
+	cQuery += "           INNER JOIN" + CRLF
+	cQuery += "                      " + retsqltab("QPQ") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  = 1" + CRLF
+	cQuery += "                                 AND QPQ.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                 AND QPQ_CODMED     = QPR_CHAVE" + CRLF
+	cQuery += "           LEFT JOIN" + CRLF
+	cQuery += "                      " + retsqltab("QQ7") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  = 1" + CRLF
+	cQuery += "                                 AND QQ7.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "                                 AND QQ7_PRODUT = QPR_PRODUT" + CRLF
+	cQuery += "                                 AND QQ7_CLIENT = D2_CLIENTE" + CRLF
+	cQuery += "                                 AND QQ7_LOJA = D2_LOJA" + CRLF
+	cQuery += "                                 AND QQ7_ENSAIO = QP1_ENSAIO" + CRLF
+	cQuery += "           LEFT JOIN" + CRLF
+	cQuery += "                      " + retsqltab("QPB") + CRLF
+	cQuery += "                      ON" + CRLF
+	cQuery += "                                 1                  = 1" + CRLF
+	cQuery += "                                 AND QPB_FILIAL		= B1_FILIAL" + CRLF
+	cQuery += "                                 AND QPB_PRODUT		= B1_COD" + CRLF
+	cQuery += "                                 AND QPB.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "WHERE" + CRLF
+	cQuery += "           SD2.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "			  AND BM_ZZCQLAU <> ' ' " + CRLF
+	cQuery += "           AND D2_FILIAL  = '" + cFilNF + "'" + CRLF
+	cQuery += "           AND D2_DOC     = '" + cNumNF + "'" + CRLF
+	cQuery += "           AND RTRIM(QPQ_MEDICA) = 'OK' " + CRLF
+	cQuery += "GROUP BY" + CRLF
+	cQuery += "           B1_COD" + CRLF
+	cQuery += "         , B1_DESC" + CRLF
+	cQuery += "         , B1_ZZECN" + CRLF
+	cQuery += "         , QPR_PRODUT" + CRLF
+	cQuery += "         , BM_ZZCQLAU" + CRLF
+	cQuery += "         , QQ7_ZZCQLA" + CRLF
+	cQuery += "         , QPR_REVI" + CRLF
+	cQuery += "         , QPR_LOTE" + CRLF
+	cQuery += "         , QP1_ENSAIO" + CRLF
+	cQuery += "         , QPR_OP" + CRLF
+	cQuery += "         , D2_DOC" + CRLF
+	cQuery += "         , D2_SERIE" + CRLF
+	cQuery += "         , D2_UM" + CRLF
+	cQuery += "         , D2_SEGUM" + CRLF
+	cQuery += "         , D2_PEDIDO" + CRLF
+	cQuery += "         , ISNULL(QPB_DESCRI,'')" + CRLF
+	cQuery += "         , QP1_DESCPO" + CRLF
+	cQuery += "         , QP8_LABOR" + CRLF
+	cQuery += "         , QPQ_MEDICA" + CRLF
+	cQuery += "         , QP8_TEXTO" + CRLF
+	cQuery += "ORDER BY" + CRLF
+	cQuery += "           X.QP7_LABOR" + CRLF
+
+	cArquivoQuery		:= cDirServDest + cFilNf + "_" + cNumNF + ".sql"
+
+	If file( cArquivoQuery )
+		Ferase( cArquivoQuery )
+	endif
+
+	MemoWrite( cArquivoQuery, cQuery )
+
+	tcquery cQuery new Alias &cAlias
+
+	While (cAlias)->(!Eof())
+		cPedido			:= AllTrim( (cAlias)->D2_PEDIDO )
+		cProduto		:= AllTrim( (cAlias)->QPR_PRODUT )
+		cCodEnsaio		:= AllTrim( (cAlias)->QP1_ENSAIO )
+		cECN			:= iif(empty((cAlias)->B1_ZZECN ),"-",alltrim( (cAlias)->B1_ZZECN ))
+		cDescProd		:= AllTrim( (cAlias)->B1_DESC )
+		cLoteOP			:= AllTrim( (cAlias)->QPR_OP )
+		cModelo			:= AllTrim( (cAlias)->BM_ZZCQLAU )
+		nQtdProd		:= retQuantidadeItem(cFilNf,cNumNF,(cAlias)->D2_SERIE,cProduto,cLoteOP,.F.)
+		nQtd2Prod		:= retQuantidadeItem(cFilNf,cNumNF,(cAlias)->D2_SERIE,cProduto,cLoteOP,.T.)
+		cInfAdProd		:= alltrim( (cAlias)->INF_PROD )
+
+		cUnidMed		:= Posicione("SAH",1,FwXFilial("SAH") + AllTrim( (cAlias)->D2_UM ),"AH_ZQUAL")
+		cSegundUM		:= AllTrim((cAlias)->D2_SEGUM)
+		//cSegundUM		:= Posicione("SAH",1,FwXFilial("SAH") + AllTrim( (cAlias)->D2_SEGUM ),"AH_ZQUAL")
+		nDiasValid		:= Posicione("SB1",1,FwXFilial("SB1") + AllTrim( cProduto ),"B1_PRVALID")
+
+		cDataFabricIni	:= DTOC(retMenorDataFabric(cLoteOP,cProduto))
+		cDataFabricFim	:= DTOC(retMaiorDataFabric(cLoteOP,cProduto))
+		sequencDatas( @cDataFabricIni , @cDataFabricFim )
+
+		cDataIniLote	:= DTOC(DaySum( CTOD( cDataFabricIni ) , nDiasValid ))
+		cDataFimLote	:= DTOC(DaySum( CTOD( cDataFabricFim ) , nDiasValid ))
+		sequencDatas( @cDataIniLote , @cDataFimLote )
+
+		aTmp		:= {}
+		aAdd( aTmp, alltrim((cAlias)->QP1_DESCPO) )
+		aAdd( aTmp, alltrim((cAlias)->UNIDADE) )
+		aAdd( aTmp, convZeros(alltrim((cAlias)->ESP_MIN)) ) //POS_ESP_MIN
+		aAdd( aTmp, convZeros(alltrim((cAlias)->ESP_MAX)) ) //POS_ESP_MAX
+		aAdd( aTmp, alltrim((cAlias)->RESULT_MIN) ) //POS_RES_MIN
+		aAdd( aTmp, alltrim((cAlias)->RESULT_MAX) ) //POS_RES_MAX
+		aAdd( aTmp, alltrim((cAlias)->RESULTADO) ) //POS_RESULTA
+		aAdd( aTmp, "OK" ) //POS_STATUS
+
+		nPosicao		:= aScan( aDadosQualid, { |x| x[POS_MODELO] == cModelo .and. x[POS_LOTE] == cLoteOP } )
+		if nPosicao > 0
+			cMinDtFabric	:= DTOC(retMenorDataFabric(cLoteOP,cProduto))
+			cMaxDtFabric	:= DTOC(retMaiorDataFabric(cLoteOP,cProduto))
+			sequencDatas( @cMinDtFabric , @cMaxDtFabric )
+
+			/*
+			cMinDtFabric		:= aDadosQualid[nPosicao,POS_DFAB_INI]
+			cMaxDtFabric		:= aDadosQualid[nPosicao,POS_DFAB_FIM]
+
+			if empty(cMinDtFabric) .or. ctod( cDataFabric ) < ctod(cMinDtFabric)
+				cMinDtFabric		:= cDataFabric
+			endif
+
+			if empty(cMaxDtFabric) .or. ctod( cDataFabric ) > ctod(cMaxDtFabric)
+				cMaxDtFabric		:= cDataFabric
+			endif
+			*/
+
+			aAdd( aDadosQualid[nPosicao,POS_ITENS] , aTmp )
+			aDadosQualid[nPosicao,POS_DFAB_INI]		:= cMinDtFabric
+			aDadosQualid[nPosicao,POS_DFAB_FIM]		:= cMaxDtFabric
+		else
+			aAdd( aDadosQualid,	{ {aTmp}, cModelo, cLoteOP, cDescProd, cProduto, nQtdProd , cECN, cUnidMed, cDataIniLote, cDataFimLote, cDataFabricIni, cDataFabricFim, cPedido, nQtd2Prod, cSegundUM, cInfAdProd } ) //TODO
+		endif
+
+		(cAlias)->(DbSkip())
+	endDo
+
+	(cAlias)->(DbCloseArea())
+
+return aDadosQualid
+
+//-----------------------------------------------------------------
+static function convZeros(xConteud)
+
+	local cRet
+	default xConteud		:= ""
+
+	if val(strtran(xConteud,",",".")) == 0
+		cRet		:= "-"
+	else
+		cRet		:= xConteud
+	endif
+
+return cRet
+
+//-----------------------------------------------------------------
+static function convQuant(nQtde,cUM,lPrim)
+
+	local nRet			:= 0
+	local cRet			:= ""
+	local cTiposUm		:= getnewpar('ZZ_UMCONVQ','RL/PC')
+	local nQtdeDec		:= getnewpar('ZZ_ZQTDDEC',0)
+	local lAltVirgPont	:= getnewpar('ZZ_VIRG2PO',.T.)
+
+	local lConv1UM		:= getnewpar('ZZ_CONVQT1',.F.)
+	local lConv2UM		:= getnewpar('ZZ_CONVQT2',.T.)
+
+	default nQtde		:= 0
+	default cUM			:= ""
+	default lPrim		:= .T.
+
+	if alltrim(cUM) $ alltrim(cTiposUm)
+		if lConv1UM
+			nRet		:= Round( nQtde , nQtdeDec )
+		elseif lConv2UM
+			nRet		:= Round( nQtde , nQtdeDec )
+		else
+			nRet			:= nQtde
+		endif
+	else
+		nRet			:= nQtde
+	endif
+
+	if lAltVirgPont
+		cRet		:= StrTran( cValToChar(nRet) , ".", "," )
+	else
+		cRet		:= cValToChar(nRet)
+	endif
+
+return cRet
+
+//-----------------------------------------------------------------
+static function sequencDatas(cMinData,cMaxData)
+
+	local dDataTmp			:= stod('')
+
+	if CTOD(cMinData) > CTOD(cMaxData)
+		dDataTmp		:= CTOD(cMinData)
+		cMinData		:= CTOD(cMaxData)
+		cMaxData		:= CTOD(dDataTmp)
+	endif
+
+return
+
+//-----------------------------------------------------------------
+static Function retDatasEnsaios(cNumOP,cCodProd,cCodEnsaio)
+
+	local aDatas			:= {}
+	local cAlias			:= getnextalias()
+	local cQuery			:= ""
+
+	cQuery		+= "SELECT" + CRLF
+	cQuery		+= "       MIN(QPR_DTMEDI) MENOR_DATA" + CRLF
+	cQuery		+= "     , MAX(QPR_DTMEDI) MAIOR_DATA" + CRLF
+	cQuery		+= "FROM" + CRLF
+	cQuery		+= "       " + retsqltab("QPR") + CRLF
+	cQuery		+= "WHERE" + CRLF
+	cQuery		+= "       QPR.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "       AND QPR_OP     = '" + cNumOP + "'" + CRLF
+	cQuery		+= "       AND QPR_PRODUT = '" + cCodProd + "'" + CRLF
+
+	if !empty(cCodEnsaio)
+		cQuery		+= "       AND QPR_ENSAIO = '" + cCodEnsaio + " '" + CRLF
+	endif
+
+	cQuery		+= "       AND QPR_RESULT = 'A'" + CRLF
+
+	tcquery cQuery new alias &cAlias
+
+	if (cAlias)->(!Eof())
+		aAdd( aDatas, STOD( (cAlias)->MENOR_DATA ) )
+		aAdd( aDatas, STOD( (cAlias)->MAIOR_DATA ) )
+	else
+		aAdd( aDatas, Date() )
+		aAdd( aDatas, Date() )
+	endIf
+
+	(cAlias)->(DbCloseArea())
+
+return aDatas
+
+//-----------------------------------------------------------------
+static function retMenorDataFabric(cNumOP,cCodProd)
+
+	local dDataRet			:= stod("")
+	local cAlias			:= getnextalias()
+	local cQuery			:= ""
+
+	/* SOLICITADA ALTERAÇÃO POR TAMIRES
+	
+	cQuery		+= "SELECT" + CRLF
+	cQuery		+= "       MIN(QPR_DTMEDI) MENOR_DATA" + CRLF
+	cQuery		+= "FROM" + CRLF
+	cQuery		+= "       " + retsqltab("QPR") + CRLF
+	cQuery		+= "WHERE" + CRLF
+	cQuery		+= "       QPR.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "       AND QPR_OP     = '" + cNumOP + "'" + CRLF
+	cQuery		+= "       AND QPR_PRODUT = '" + cCodProd + "'" + CRLF
+	cQuery		+= "       AND QPR_RESULT = 'A'" + CRLF
+	*/
+
+	cQuery		+= "SELECT" + CRLF
+	cQuery		+= "	MIN(D3_EMISSAO) MENOR_DATA" + CRLF
+	cQuery		+= "FROM" + CRLF
+	cQuery		+= "       " + retsqltab("SD3") + CRLF
+	cQuery		+= "WHERE" + CRLF
+	cQuery		+= "	SD3.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "	AND D3_COD = '" + cCodProd + "'" + CRLF
+	cQuery		+= "	AND D3_OP = '" + cNumOP + "'" + CRLF
+	cQuery		+= "	AND D3_CF = 'PR0'" + CRLF
+
+	tcquery cQuery new alias &cAlias
+
+	if (cAlias)->(!Eof())
+		dDataRet		:= STOD( (cAlias)->MENOR_DATA )
+	endif
+
+	if empty(dDataRet)
+		dDataRet		:= Date()
+	endIf
+
+	(cAlias)->(DbCloseArea())
+
+return dDataRet
+
+
+//-----------------------------------------------------------------
+static function retMaiorDataFabric(cNumOP,cCodProd)
+
+	local dDataRet			:= stod("")
+	local cAlias			:= getnextalias()
+	local cQuery			:= ""
+
+	cQuery		+= "SELECT" + CRLF
+	cQuery		+= "       MAX(D3_EMISSAO) MAIOR_DATA" + CRLF
+	cQuery		+= "FROM" + CRLF
+	cQuery		+= "       " + retsqltab("SD3") + CRLF
+	cQuery		+= "WHERE" + CRLF
+	cQuery		+= "       SD3.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "       AND D3_OP     = '" + cNumOP + "'" + CRLF
+	cQuery		+= "       AND D3_COD = '" + cCodProd + "'" + CRLF
+	cQuery		+= "       AND D3_CF = 'PR0' " + CRLF
+
+	tcquery cQuery new alias &cAlias
+
+	if (cAlias)->(!Eof())
+		dDataRet		:= STOD( (cAlias)->MAIOR_DATA )
+	else
+		dDataRet		:= Date()
+	endIf
+
+	(cAlias)->(DbCloseArea())
+
+return dDataRet
+
+//-----------------------------------------------------------------
+static Function retQuantidadeItem(cFilNf,cNumNF,cSerieNF,cCodProd,cLoteOP,lSegum)
+
+	local cQuery		:= ""
+	local cAlias		:= getnextalias()
+	local nQuant		:= 0
+
+	cQuery += "SELECT " + CRLF
+	cQuery += "		SUM(D2_QUANT) QTDE" + CRLF
+	cQuery += "		,SUM(D2_QTSEGUM) QTDE2 " + CRLF
+	cQuery += "FROM " + CRLF
+	cQuery += "		" + retsqltab("SD2") + CRLF
+	cQuery += "INNER JOIN" + CRLF
+	cQuery += "		" + retsqltab("SD3") + CRLF
+	cQuery += "		ON" + CRLF
+	cQuery += "			D3_FILIAL          = D2_FILIAL" + CRLF
+	cQuery += "    		AND D3_COD         = D2_COD" + CRLF
+	cQuery += "    		AND D3_LOTECTL     = D2_LOTECTL" + CRLF
+	cQuery += "    		AND D3_CF          = 'PR0'" + CRLF
+	cQuery += "			AND SD3.D_E_L_E_T_ = ' '" + CRLF
+	cQuery += "WHERE " + CRLF
+	cQuery += "		SD2.D_E_L_E_T_ = ' ' " + CRLF
+	cQuery += "		AND D2_FILIAL  = '" + cFilNf + "'" + CRLF
+	cQuery += "    	AND D2_DOC     = '" + cNumNF + "'" + CRLF
+	cQuery += "		AND D2_SERIE = '" + cSerieNF + "'" + CRLF
+	cQuery += "		AND D2_COD = '" + cCodProd + "'" + CRLF
+	cQuery += "		AND D3_OP = '" + cLoteOP + "'" + CRLF
+
+	tcquery cQuery new alias &cAlias
+
+	if (cAlias)->(!eof())
+		if lSegum
+			nQuant			:= (cAlias)->QTDE2
+		else
+			nQuant			:= (cAlias)->QTDE
+		endif
+	endif
+
+return nQuant
+
+//-----------------------------------------------------------------
+static Function montaItensDoDetalhado(cFilNf,cNumNF)
+
+	local nPosicao			:= 0
+	local aItens			:= {}
+	local cArquivoQuery		:= ""
+	local cQuery			:= ""
+	local cEnsaio			:= ""
+	local cCodEnsaio		:= ""
+	local cAlias			:= getnextalias()
+	local aEnsaioAtual		:= {}
+
+	cQuery		+= "SELECT" + CRLF
+	cQuery		+= "           QPR_OP" + CRLF
+	cQuery		+= "         , D2_COD" + CRLF
+	cQuery		+= "         , B1_DESC" + CRLF
+	cQuery		+= "         , D2_PEDIDO" + CRLF
+	cQuery		+= "         , D2_DOC" + CRLF
+	cQuery		+= "         , QP1_ENSAIO" + CRLF
+	cQuery		+= "         , QP1_DESCPO" + CRLF
+	cQuery		+= "         , QPS_CODMED" + CRLF
+	cQuery		+= "         , REPLACE(STR(AVG(CONVERT(DECIMAL(16,2),(REPLACE(QPS_MEDICA, ',', '.' )))),16,2),'.',',') RESULTADO" + CRLF
+	cQuery		+= "FROM" + CRLF
+	cQuery		+= "           " + retsqltab("QP1") + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("QPR") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 1                  =1" + CRLF
+	cQuery		+= "                                 AND QPR_ENSAIO     = QP1_ENSAIO" + CRLF
+	cQuery		+= "                                 AND QPR.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("QP7") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 1                  = 1" + CRLF
+	cQuery		+= "                                 AND QP7.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "                                 AND QP7_PRODUT     = QPR_PRODUT" + CRLF
+	cQuery		+= "                                 AND QP7_ENSAIO     = QPR_ENSAIO" + CRLF
+	cQuery		+= "                                 AND QP7_REVI       = QPR_REVI" + CRLF
+	cQuery		+= "                                 AND QP7_CODREC     = QPR_ROTEIR" + CRLF
+	cQuery		+= "                                 AND QP7_OPERAC     = QPR_OPERAC" + CRLF
+	cQuery		+= "                                 AND QP7_CERTIF     = 'S'" + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("SB1") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 1                  =1" + CRLF
+	cQuery		+= "                                 AND B1_COD         = QPR_PRODUT" + CRLF
+	cQuery		+= "                                 AND SB1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("SD2") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 1                  =1" + CRLF
+	cQuery		+= "                                 AND D2_COD         = B1_COD" + CRLF
+	cQuery		+= "                                 AND SD2.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("SD3") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 D3_FILIAL          = D2_FILIAL" + CRLF
+	cQuery		+= "                                 AND D3_COD         = D2_COD" + CRLF
+	cQuery		+= "                                 AND D3_LOTECTL     = D2_LOTECTL" + CRLF
+	cQuery		+= "                                 AND D3_CF          = 'PR0'" + CRLF
+	cQuery		+= "                                 AND D3_OP          = QPR_OP" + CRLF
+	cQuery		+= "                                 AND SD3.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "           INNER JOIN" + CRLF
+	cQuery		+= "                      " + retsqltab("QPS") + CRLF
+	cQuery		+= "                      ON" + CRLF
+	cQuery		+= "                                 1                  = 1" + CRLF
+	cQuery		+= "                                 AND QPS_FILIAL     = QPR_FILIAL" + CRLF
+	cQuery		+= "                                 AND QPS_CODMED     = QPR_CHAVE" + CRLF
+	cQuery		+= "                                 AND QPS.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "WHERE" + CRLF
+	cQuery		+= "           QP1.D_E_L_E_T_ = ' '" + CRLF
+	cQuery		+= "           AND D2_FILIAL     = '" + cFilNF + "'" + CRLF
+	cQuery		+= "           AND D2_DOC     = '" + cNumNF + "'" + CRLF
+	cQuery		+= "GROUP BY" + CRLF
+	cQuery		+= "           QPR_OP" + CRLF
+	cQuery		+= "         , D2_COD" + CRLF
+	cQuery		+= "         , B1_DESC" + CRLF
+	cQuery		+= "         , D2_PEDIDO" + CRLF
+	cQuery		+= "         , D2_DOC" + CRLF
+	cQuery		+= "         , QP1_ENSAIO" + CRLF
+	cQuery		+= "         , QP1_DESCPO" + CRLF
+	cQuery		+= "         , QPS_CODMED" + CRLF
+	cQuery		+= "ORDER BY" + CRLF
+	cQuery		+= "           QP1_DESCPO" + CRLF
+	cQuery		+= "" + CRLF
+
+	cArquivoQuery		:= cDirServDest + cFilNf + "_" + cNumNF + "_detalhes" + ".sql"
+
+	If file( cArquivoQuery )
+		Ferase( cArquivoQuery )
+	endif
+
+	MemoWrite( cArquivoQuery, cQuery )
+
+	tcquery cQuery new Alias &cAlias
+
+	while (cAlias)->(!Eof())
+		cEnsaio			:= alltrim( (cAlias)->QP1_ENSAIO )
+		cCodEnsaio		:= alltrim( (cAlias)->QP1_DESCPO )
+
+		// Verifica se o ensaio atual deve ser impresso no detalhado
+		if cEnsaio $ getnewpar("ZZ_ENSADET","COR0001/TBW0001/TBW0006/TBW0007")
+			aEnsaioAtual	:= { (cAlias)->QPR_OP, (cAlias)->D2_COD, (cAlias)->B1_DESC, (cAlias)->D2_PEDIDO, (cAlias)->D2_DOC, cCodEnsaio, {} }
+			nPosicao		:= aScan( aItens, { |x| x[POS_DET_ENSAIO] == cCodEnsaio } )
+			if nPosicao == 0
+				aAdd( aItens, aEnsaioAtual )
+				aAdd( aItens[Len(aItens),POS_DET_RESULT], alltrim( (cAlias)->RESULTADO ) )
+			else
+				aAdd( aItens[nPosicao,POS_DET_RESULT], alltrim( (cAlias)->RESULTADO ) )
+			endif
+		endif
+		(cAlias)->(Dbskip())
+	endDo
+
+return aItens
+
+//-----------------------------------------------------------------
+static Function retIdiomaCliente()
+
+	If AllTrim(SA1->A1_ZZCQIDI) == "P"
+		cIdioma		:= "_PT"
+	elseif AllTrim(SA1->A1_ZZCQIDI) == "E"
+		cIdioma		:= "_ES"
+	elseif AllTrim(SA1->A1_ZZCQIDI) == "I"
+		cIdioma		:= "_IN"
+	else
+		cIdioma		:= "_PT"
+	endif
+
+return

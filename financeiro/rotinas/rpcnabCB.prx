@@ -1,0 +1,43 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabCB()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CINFCOMP,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABCB ³ 
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna INFORMACOES COMPLEMENTARES P/ CNABS              ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ³Uso SigaFIN - Empresa ROYALPLAS-PagFor                                 ³
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+
+//Implantado por Flávia na Confibra em 04-09-08
+
+_cInfComp := ""        // para armazenar informacoes complementares
+                       // posicao 374 inicio 382 fim, o resto e branco
+
+//IF EMPTY(SE2->E2_CODBAR) .AND. SE2->E2_BANCO <> "237" //SEM CODIGO BARRA E BANCO DIFERENTE BRADESCO
+IF EMPTY(SE2->E2_CODBAR) .AND. SA2->A2_BANCO <> "237" //SEM CODIGO BARRA E BANCO DIFERENTE BRADESCO
+        IF SM0->M0_CGC == SA2->A2_CGC  //SE CGC IGUAL CGC CABECALHO CNAB 
+              _cInfComp := "D00000001" //DOC D COM CREDITO EM CONTA CORRENTE
+        ELSE
+              _cInfComp := "C00000001" //DOC C COM CREDITO EM CONTA CORRENTE 
+        ENDIF
+ELSE
+   _cInfComp := Substr(SE2->E2_CODBAR,20,25)
+ENDIF
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cInfComp)
+Return(_cInfComp)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+

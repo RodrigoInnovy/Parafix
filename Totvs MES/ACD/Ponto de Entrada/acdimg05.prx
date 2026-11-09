@@ -1,0 +1,20 @@
+#Include "TOTVS.ch"
+#Include "prtopdef.ch"
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Img05
+Ponto de entrada para impressão de etiquetas de volumes.
+Usado para gatilhar o código do novo volume gerado 
+Parafix.
+
+@type	User Function
+@author 	João Gustavo Orsi
+@since 	04/12/2017
+@version P12
+/*/
+//-------------------------------------------------------------------
+User Function Img05   // imagem de etiqueta de volume temporaria
+	
+	cVolume := paramixb[1]
+	
+Return

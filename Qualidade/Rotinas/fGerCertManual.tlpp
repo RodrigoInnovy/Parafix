@@ -1,0 +1,78 @@
+#include "Protheus.Ch"
+#include "Topconn.Ch"
+
+//-----------------------------------------------------------------
+/*/{Protheus.dot} fGerCertManual
+Geração do certificado de qualidade de forma manual
+
+@type       Function
+@author     Julio Lisboa
+@since      03/12/2021
+/*/
+//-----------------------------------------------------------------
+User Function fGerCertManual()
+
+	local aParamBox         := {}
+	local aOpSimNao			:= {"1=Sim","2=Nao"}
+
+	aAdd(aParamBox,{1,"Emissão de",         Ctod("")	,""	,""	,""	,""	,60,.T.}) //MV_PAR01
+	aAdd(aParamBox,{1,"Emissão ate",        Ctod("")	,""	,""	,""	,""	,60,.T.}) //MV_PAR02
+	Aadd(aParambox,{1,"Nota De",            Space(TamSX3("F2_DOC")[1]),"","","ZZSF2","",80,.F.}) //MV_PAR03
+	Aadd(aParambox,{1,"Serie De",           Space(TamSX3("F2_SERIE")[1]),"","","","",40,.F.}) //MV_PAR04
+	Aadd(aParambox,{1,"Nota Ate",            Space(TamSX3("F2_DOC")[1]),"","","ZZSF2","",80,.T.}) //MV_PAR05
+	Aadd(aParambox,{1,"Serie Ate",           Space(TamSX3("F2_SERIE")[1]),"","","","",40,.T.}) //MV_PAR06
+	aAdd(aParamBox,{2,"Envia E-mail?"        ,"1",aOpSimNao,65,"",.T.})	//MV_PAR07
+
+	If ParamBox(aParamBox,"Parametros",,,,.T.,,,,"fGerCertManual",.T.,.T.)
+		Processa( {|| buscaNotas() }, "Aguarde...", "Processando certificados...",.F.)
+	endif
+
+return
+
+//-----------------------------------------------------------------
+static function buscaNotas()
+
+	local cQuery        := ""
+	local cAlias        := getnextalias()
+	local nQtdRegs      := 0
+	local nReg          := 0
+	local aAreaSF2      := SF2->(GetArea())
+
+	cQuery      += "SELECT " + CRLF
+	cQuery      += "    F2_FILIAL,F2_DOC,F2_SERIE,SF2.R_E_C_N_O_ SF2_RECNO " + CRLF
+	cQuery      += "FROM " + CRLF
+	cQuery      += "    " + retsqltab("SF2") + CRLF
+	cQuery      += "WHERE " + CRLF
+	cQuery      += "    SF2.D_E_L_E_T_ = ' ' " + CRLF
+	cQuery      += "    AND F2_EMISSAO BETWEEN '" + dtos(MV_PAR01) + "' AND '" + dtos(MV_PAR02) + "' " + CRLF
+	cQuery      += "    AND F2_DOC BETWEEN '" + MV_PAR03 + "' AND '" + MV_PAR05 + "' " + CRLF
+	cQuery      += "    AND F2_SERIE BETWEEN '" + MV_PAR04 + "' AND '" + MV_PAR06 + "' " + CRLF
+	cQuery      += "ORDER BY " + CRLF
+	cQuery      += "    SF2.F2_FILIAL,SF2.F2_DOC,SF2.F2_SERIE" + CRLF
+	cQuery      += "" + CRLF
+
+	tcquery cQuery new Alias &cAlias
+	Count to nQtdRegs
+	(cAlias)->(Dbgotop())
+
+	ProcRegua(nQtdRegs)
+
+	if (cAlias)->(Eof())
+        MsgAlert("Nenhuma NF localizada com os parâmetros informados", FunDesc())
+	else
+		SF2->(DbSetOrder(1)) //F2_FILIAL+F2_DOC+F2_SERIE+F2_CLIENTE+F2_LOJA+F2_FORMUL+F2_TIPO
+		While (cAlias)->(!Eof())
+			nReg++
+			SF2->(DbGoTo( (cAlias)->SF2_RECNO ))
+
+            IncProc( "Processando NF " + SF2->F2_DOC + " - " + CValToChar(nReg) + " de " + CValToChar(nQtdRegs) )
+			U_fCertQual(SF2->F2_FILIAL,SF2->F2_DOC, MV_PAR07 == "1" )
+
+			(cAlias)->(dbskip())
+		endDo
+	endif
+
+	(cAlias)->(DbCloseArea())
+	restArea(aAreaSF2)
+
+return

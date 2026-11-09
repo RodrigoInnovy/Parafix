@@ -1,0 +1,19 @@
+#line 1 "E:\TOTVS\PROTHEUS\TESTE\PROTHE~1\INCLUDE\rwmake.ch"
+#line 1 "E:\TOTVS\PROTHEUS\TESTE\PROTHE~1\INCLUDE\stdwin.ch"
+#line 14 "rwmake.ch"
+#line 2 "z:\totvs\producao\PROTHE~2\rdmake\parafix\FINANC~1\rotinas\pagagen.prw"
+
+
+Function U_PagAgen()
+   _Agencia := "00000 "
+   if SEA->EA_Modelo == "31"
+      _CodBar  := trim(SE2->E2_CODBAR)
+      _cBanco  := left(_CodBar,3)
+      _Ag      := ""
+      if _cBanco == "001"
+         _nCol    := iif(len(_CodBar)>44,5,20)
+         _Agencia := u_Mod11Base7( substr(_CodBar,_nCol,4), 6)
+
+      endif
+   endif
+Return(_Agencia)

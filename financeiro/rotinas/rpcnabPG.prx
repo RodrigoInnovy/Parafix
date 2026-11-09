@@ -1,0 +1,44 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabPG()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("CTIPOPGT,_CTIPOPGT,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ³Funcao    ³ RPCNABPG ³³
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna a modalidade de pagamanto para CNABS             ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+/// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+//
+////Implantado por Flávia - Microsiga Campinas na Confibra em 04-09-08
+// Protheus 10
+
+
+cTipoPGT := ""         // para armazenar o tipo correto
+
+If EMPTY(SE2->E2_CODBAR)          // nao tem codigo de barras
+   If SE2->E2_BANCO == "237" .AND. !EMPTY(SE2->E2_AGENCIA) // BANCO E AGENCIA BRADESCO
+        IF EMPTY(SE2->E2_NUMCON) // NAO TEM CONTA 
+              _cTipoPGT := "02"       // sem conta e sem barras, e Cheque OP
+        Else //COM CONTA 
+              _cTipoPGT := "01"   // sem barras com conta no Bradesco faz deposito
+        ENDIF
+   Else
+         _cTipoPGT := "03"   // sem barras sem conta no Bradesco faz DOC
+   EndIf
+Else
+   _cTipoPGT := "31"   // com barras, titulos
+EndIf
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cTipoPGT)
+Return(_cTipoPGT)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+

@@ -1,0 +1,40 @@
+#include "rwmake.ch"        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+User Function rpcnabp2()        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Declaracao de variaveis utilizadas no programa atraves da funcao    ³
+//³ SetPrvt, que criara somente as variaveis definidas pelo usuario,    ³
+//³ identificando as variaveis publicas do sistema utilizadas no codigo ³
+//³ Incluido pelo assistente de conversao do AP6 IDE                    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+SetPrvt("_CAGENCIA,")
+
+//                                                                                                                                                                                                                                                                                                     /*/
+// ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿
+// ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´
+// ³ExecBlock que retorna Agencia Contas a Pagar    
+// RPCNABP2.PRX                      ³
+// ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+// ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+////Implantado por Flávia - Microsiga Campinas na Confibra em 04-09-08
+// Protheus 10
+
+_cAGENCIA:= ""
+
+If EMPTY(SE2->E2_CODBAR)      //SEM COD DE BARRAS
+//   _cAGENCIA:= SUBSTR(SE2->E2_AGENCIA,1,4) //AGENCIA DO CADASTRO DE CONTAS A PAGAR
+   _cAGENCIA:= ALLTRIM(SA2->A2_AGENCIA)
+ELSE
+   IF SUBSTR(SE2->E2_CODBAR,1,3) <>"237"       // NAO E BRADESCO
+      _cAGENCIA:= "0" //SE CODIGO BARRA FOR BANCO BRADESCO AGENCIA E IGUAL A ZERO
+   ELSE
+      _cAGENCIA:= SUBSTR(SE2->E2_CODBAR,20,4)    //AGENCIA e na posicao 20,4 DO CODIGO BARRA
+   ENDIF
+ENDIF
+
+_cAGENCIA := strzero(int(val(_cAGENCIA)),5)  
+
+// Substituido pelo assistente de conversao do AP6 IDE em 04/09/08 ==> __Return(_cAGENCIA)
+Return(_cAGENCIA)        // incluido pelo assistente de conversao do AP6 IDE em 04/09/08
