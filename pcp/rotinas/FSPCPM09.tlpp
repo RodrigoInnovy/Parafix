@@ -1,0 +1,645 @@
+#include "tlpp-core.th"
+#include "totvs.ch"
+
+//-------------------------------------------------------------------
+// Monitor de erros de integração PC Factory -> Protheus
+// Origem: PCF_Integ.dbo.TBLOutInteg x PCFV4.dbo.TBLMovType
+//-------------------------------------------------------------------
+
+#define PCF_TAB_OUTINTEG   "PCF_Integ.dbo.TBLOutInteg"
+#define PCF_TAB_MOVTYPE    "PCFV4.dbo.TBLMovType"
+
+#define COL_CAMPO      1
+#define COL_TITULO     2
+#define COL_TIPO       3
+#define COL_TAMANHO    4
+#define COL_DECIMAL    5
+#define COL_PICTURE    6
+#define COL_INDICE     7
+
+Static oTmpTab    := Nil
+Static oBrowse    := Nil
+Static cAliasTmp  := ""
+Static aColsDef   := {}
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} FSPCPM09
+Monitor de erros de integração do PC Factory (TBLOutInteg).
+@type User Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+User Function FSPCPM09()
+
+    Local aSeek     := {} as array
+    Private aRotina := {} as array
+
+    aRotina  := MenuDef()
+    aColsDef := DefColunas()
+
+    If CriaTemp()
+        FwMsgRun(, {|| CarregaDados()}, "Monitor PC Factory", "Carregando erros de integração...")
+
+        aSeek := MontaSeek()
+
+        oBrowse := FWMBrowse():New()
+        oBrowse:SetAlias(cAliasTmp)
+        oBrowse:SetTemporary(.T.)
+        oBrowse:SetDescription("Monitor de Erros de Integração - PC Factory")
+        oBrowse:SetColumns(MontaColunas())
+        oBrowse:SetUseFilter(.T.)
+        oBrowse:SetDBFFilter(.T.)
+        oBrowse:SetFieldFilter(MontaFiltro())
+        oBrowse:SetSeek(.T., aSeek)
+        oBrowse:DisableDetails()
+        oBrowse:Activate()
+
+        oBrowse:DeActivate()
+        oTmpTab:Delete()
+    EndIf
+
+    oBrowse   := Nil
+    oTmpTab   := Nil
+    cAliasTmp := ""
+
+Return Nil
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MenuDef
+Opções de menu do Monitor PC Factory.
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function MenuDef()
+
+    Local aRotina := {} as array
+
+    aAdd(aRotina, {"Visualizar Registro", "U_PCPM09Ver", 0, 2, 0, Nil})
+    aAdd(aRotina, {"Reprocessar"        , "U_PCPM09Rep", 0, 4, 0, Nil})
+    aAdd(aRotina, {"Atualizar"          , "U_PCPM09Atu", 0, 3, 0, Nil})
+
+Return aRotina
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} DefColunas
+Definição única das colunas.
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function DefColunas()
+
+    Local aCols := {} as array
+
+    aAdd(aCols, {"INTEGR"  , "Status Integ."    , "N", 3  , 0, "999"                 , .T.})
+    aAdd(aCols, {"MOVTYPE" , "Tipo Mov."        , "C", 20 , 0, "@!"                  , .T.})
+    aAdd(aCols, {"MOVNAME" , "Desc. Tipo Mov."  , "C", 60 , 0, ""                    , .T.})
+    aAdd(aCols, {"PRODUTO" , "Produto"          , "C", 30 , 0, "@!"                  , .T.})
+    aAdd(aCols, {"QTD"     , "Quantidade"       , "N", 16 , 4, "@E 999,999,999.9999" , .T.})
+    aAdd(aCols, {"IDOUT"   , "ID Out Integ."    , "N", 12 , 0, "999999999999"        , .T.})
+    aAdd(aCols, {"IDTRANS" , "ID Transação"     , "C", 40 , 0, ""                    , .T.})
+    aAdd(aCols, {"LOTE"    , "Lote"             , "C", 30 , 0, ""                    , .T.})
+    aAdd(aCols, {"LOTERAST", "Lote Rastro"      , "C", 30 , 0, ""                    , .T.})
+    aAdd(aCols, {"OP"      , "Ordem Produção"   , "C", 30 , 0, ""                    , .T.})
+    aAdd(aCols, {"ENDER1"  , "Endereço 1"       , "C", 30 , 0, ""                    , .T.})
+    aAdd(aCols, {"ENDER2"  , "Endereço 2"       , "C", 30 , 0, ""                    , .T.})
+    aAdd(aCols, {"USUARIO" , "Usuário"          , "C", 30 , 0, ""                    , .T.})
+    aAdd(aCols, {"DTCRIA"  , "Dt. Criação"      , "C", 19 , 0, ""                    , .T.})
+    aAdd(aCols, {"DTINTEG" , "Dt. Integração"   , "C", 19 , 0, ""                    , .T.})
+    aAdd(aCols, {"ERRO"    , "Erro"             , "C", 254, 0, ""                    , .F.})
+    aAdd(aCols, {"OBS"     , "Observação"       , "C", 254, 0, ""                    , .F.})
+
+Return aCols
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} CriaTemp
+Cria a tabela temporária com um índice por coluna ordenável.
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function CriaTemp()
+
+    Local aFields := {} as array
+    Local nCol    := 0  as numeric
+    Local nIdx    := 1  as numeric
+    Local lOk     := .T. as logical
+
+    For nCol := 1 To Len(aColsDef)
+        aAdd(aFields, {aColsDef[nCol][COL_CAMPO], aColsDef[nCol][COL_TIPO], aColsDef[nCol][COL_TAMANHO], aColsDef[nCol][COL_DECIMAL]})
+    Next nCol
+
+    cAliasTmp := GetNextAlias()
+    oTmpTab   := FWTemporaryTable():New(cAliasTmp)
+    oTmpTab:SetFields(aFields)
+
+    oTmpTab:AddIndex(StrZero(nIdx, 2), {"DTCRIA", "IDOUT"})
+
+    For nCol := 1 To Len(aColsDef)
+        If aColsDef[nCol][COL_INDICE] .And. aColsDef[nCol][COL_CAMPO] != "DTCRIA"
+            nIdx++
+            oTmpTab:AddIndex(StrZero(nIdx, 2), {aColsDef[nCol][COL_CAMPO], "DTCRIA"})
+        EndIf
+    Next nCol
+
+    oTmpTab:Create()
+
+    If Select(cAliasTmp) == 0
+        lOk := .F.
+        Help(, , "FSPCPM09", , "Não foi possível criar a tabela temporária do monitor.", 1, 0)
+    EndIf
+
+Return lOk
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MontaSeek
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function MontaSeek()
+
+    Local aSeek := {} as array
+    Local nCol  := 0  as numeric
+    Local nPos  := 0  as numeric
+
+    nPos := aScan(aColsDef, {|x| x[COL_CAMPO] == "DTCRIA"})
+    aAdd(aSeek, {aColsDef[nPos][COL_TITULO], {{"", aColsDef[nPos][COL_TIPO], aColsDef[nPos][COL_TAMANHO], 0, aColsDef[nPos][COL_TITULO], ""}}})
+
+    For nCol := 1 To Len(aColsDef)
+        If aColsDef[nCol][COL_INDICE] .And. aColsDef[nCol][COL_CAMPO] != "DTCRIA"
+            aAdd(aSeek, {aColsDef[nCol][COL_TITULO], {{"", aColsDef[nCol][COL_TIPO], aColsDef[nCol][COL_TAMANHO], aColsDef[nCol][COL_DECIMAL], aColsDef[nCol][COL_TITULO], aColsDef[nCol][COL_PICTURE]}}})
+        EndIf
+    Next nCol
+
+Return aSeek
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MontaFiltro
+Estrutura de campos para o Gerenciador de Filtros (SetFieldFilter)
+em tabela temporária (FWTemporaryTable).
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function MontaFiltro()
+
+    Local aFiltro := {} as array
+    Local nCol    := 0  as numeric
+
+    For nCol := 1 To Len(aColsDef)
+        aAdd(aFiltro, { ;
+            aColsDef[nCol][COL_CAMPO]  , ;
+            aColsDef[nCol][COL_TITULO] , ;
+            aColsDef[nCol][COL_TIPO]   , ;
+            aColsDef[nCol][COL_TAMANHO], ;
+            aColsDef[nCol][COL_DECIMAL], ;
+            aColsDef[nCol][COL_PICTURE]  ;
+        })
+    Next nCol
+
+Return aFiltro
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MontaColunas
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function MontaColunas()
+
+    Local aColunas := {} as array
+    Local oColumn  := Nil as object
+    Local nCol     := 0  as numeric
+
+    For nCol := 1 To Len(aColsDef)
+        oColumn := FWBrwColumn():New()
+        oColumn:SetData(BlocoCampo(aColsDef[nCol][COL_CAMPO]))
+        oColumn:SetTitle(aColsDef[nCol][COL_TITULO])
+        oColumn:SetType(aColsDef[nCol][COL_TIPO])
+        oColumn:SetSize(aColsDef[nCol][COL_TAMANHO])
+        oColumn:SetDecimal(aColsDef[nCol][COL_DECIMAL])
+        oColumn:SetPicture(aColsDef[nCol][COL_PICTURE])
+        aAdd(aColunas, oColumn)
+    Next nCol
+
+Return aColunas
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} BlocoCampo
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function BlocoCampo(cCampo as character)
+Return {|| (cAliasTmp)->(FieldGet(FieldPos(cCampo)))}
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MontaQuery
+Query nativa SQL Server (tabelas do PC Factory).
+Adicionado WITH (NOLOCK) explicitamente para evitar falha no parser do DBAccess.
+@type Static Function
+@author Rodrigo
+/*/
+//-------------------------------------------------------------------
+Static Function MontaQuery()
+
+    Local cQuery := "" as character
+
+    cQuery := "SELECT "
+    cQuery += "  CAST(IT.Ext1Integrated AS INT) AS INTEGR, "
+    cQuery += "  CAST(ISNULL(IT.MovTypeCode, '') AS VARCHAR(20)) AS MOVTYPE, "
+    cQuery += "  CAST(ISNULL(PC.Name, '') AS VARCHAR(60)) AS MOVNAME, "
+    cQuery += "  CAST(ISNULL(IT.ProductCode, '') AS VARCHAR(30)) AS PRODUTO, "
+    cQuery += "  CAST(ISNULL(IT.Qty, 0) * (-1) AS NUMERIC(16,4)) AS QTD, "
+    cQuery += "  CAST(IT.IDOutInteg AS BIGINT) AS IDOUT, "
+    cQuery += "  CAST(ISNULL(IT.IDTransactions, '') AS VARCHAR(40)) AS IDTRANS, "
+    cQuery += "  CAST(ISNULL(IT.LotCode, '') AS VARCHAR(30)) AS LOTE, "
+    cQuery += "  CAST(ISNULL(IT.TraceLotCode, '') AS VARCHAR(30)) AS LOTERAST, "
+    cQuery += "  CAST(ISNULL(IT.WOCode, '') AS VARCHAR(30)) AS OP, "
+    cQuery += "  CAST(ISNULL(IT.Address1Code, '') AS VARCHAR(30)) AS ENDER1, "
+    cQuery += "  CAST(ISNULL(IT.Address2Code, '') AS VARCHAR(30)) AS ENDER2, "
+    cQuery += "  CAST(ISNULL(IT.UserCode, '') AS VARCHAR(30)) AS USUARIO, "
+    cQuery += "  ISNULL(CONVERT(VARCHAR(19), IT.DtCreation, 120), '') AS DTCRIA, "
+    cQuery += "  ISNULL(CONVERT(VARCHAR(19), IT.Ext1DtIntegration, 120), '') AS DTINTEG, "
+    cQuery += "  CAST(ISNULL(IT.ErrDescription, '') AS VARCHAR(254)) AS ERRO, "
+    cQuery += "  CAST(ISNULL(IT.Comments, '') AS VARCHAR(254)) AS OBS "
+
+    // Solução: Adicionado WITH (NOLOCK) explícito
+    cQuery += " FROM " + PCF_TAB_OUTINTEG + " IT WITH (NOLOCK) "
+    cQuery += " INNER JOIN " + PCF_TAB_MOVTYPE + " PC WITH (NOLOCK) "
+    cQuery += "   ON PC.Code = IT.MovTypeCode "
+
+    cQuery += " WHERE IT.Ext1Integrated IN (0, 1, 3) "
+    cQuery += "   AND IT.ErrDescription IS NOT NULL "
+    cQuery += " ORDER BY IT.DtCreation"
+
+Return cQuery
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} CarregaDados
+Limpa a temporária e recarrega com o resultado da query.
+@type Static Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+Static Function CarregaDados()
+
+    Local oExec   := Nil as object
+    Local cAlsQry := "" as character
+    Local nCol    := 0  as numeric
+    Local nTotal  := 0  as numeric
+    Local nPosQry := 0  as numeric
+    Local nPosTmp := 0  as numeric
+
+    // Limpa a temporária mantendo estrutura e índices
+    TCSQLExec("DELETE FROM " + oTmpTab:GetRealName())
+
+    oExec   := FWExecStatement():New(MontaQuery())
+    cAlsQry := oExec:OpenAlias()
+
+    If !Empty(cAlsQry)
+        While !(cAlsQry)->(Eof())
+            RecLock(cAliasTmp, .T.)
+            For nCol := 1 To Len(aColsDef)
+                nPosQry := (cAlsQry)->(FieldPos(aColsDef[nCol][COL_CAMPO]))
+                nPosTmp := (cAliasTmp)->(FieldPos(aColsDef[nCol][COL_CAMPO]))
+                If nPosQry > 0 .And. nPosTmp > 0
+                    (cAliasTmp)->(FieldPut(nPosTmp, (cAlsQry)->(FieldGet(nPosQry))))
+                EndIf
+            Next nCol
+            (cAliasTmp)->(MsUnlock())
+
+            nTotal++
+            (cAlsQry)->(DbSkip())
+        EndDo
+
+        (cAlsQry)->(DbCloseArea())
+    EndIf
+
+    oExec:Destroy()
+    oExec := Nil
+
+    (cAliasTmp)->(DbGoTop())
+
+Return nTotal
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PCPM09Atu
+Recarrega os registros do monitor.
+@type User Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+User Function PCPM09Atu()
+
+    Local nTotal := 0 as numeric
+
+    FwMsgRun(, {|| nTotal := CarregaDados()}, "Monitor PC Factory", "Atualizando erros de integração...")
+    oBrowse:Refresh(.T.)
+    MsgInfo(cValToChar(nTotal) + " registro(s) carregado(s).", "Monitor PC Factory")
+
+Return Nil
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PCPM09Ver
+Exibe todos os campos/colunas do registro posicionado, incluindo
+o texto completo do erro e da observação.
+@type User Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+User Function PCPM09Ver()
+
+    Local oExec     := Nil as object
+    Local oDlg      := Nil as object
+    Local oMemoErr  := Nil as object
+    Local oMemoObs  := Nil as object
+    Local cAlsQry   := ""  as character
+    Local cQuery    := ""  as character
+    Local cIntegr   := ""  as character
+    Local cMovType  := ""  as character
+    Local cMovName  := ""  as character
+    Local cProduto  := ""  as character
+    Local cQtd      := ""  as character
+    Local cIdOut    := ""  as character
+    Local cIdTrans  := ""  as character
+    Local cLote     := ""  as character
+    Local cLoteRast := ""  as character
+    Local cOP       := ""  as character
+    Local cEnder1   := ""  as character
+    Local cEnder2   := ""  as character
+    Local cUsuario  := ""  as character
+    Local cDtCria   := ""  as character
+    Local cDtInteg  := ""  as character
+    Local cErro     := ""  as character
+    Local cObs      := ""  as character
+    Local nIdOut    := 0   as numeric
+
+    If Select(cAliasTmp) == 0 .Or. (cAliasTmp)->(Eof())
+        MsgAlert("Nenhum registro selecionado.", "Monitor PC Factory")
+        Return Nil
+    EndIf
+
+    nIdOut    := (cAliasTmp)->IDOUT
+    cIdOut    := cValToChar(nIdOut)
+    cIntegr   := cValToChar((cAliasTmp)->INTEGR)
+    cMovType  := AllTrim((cAliasTmp)->MOVTYPE)
+    cMovName  := AllTrim((cAliasTmp)->MOVNAME)
+    cProduto  := AllTrim((cAliasTmp)->PRODUTO)
+    cQtd      := Transform((cAliasTmp)->QTD, "@E 999,999,999.9999")
+    cIdTrans  := AllTrim((cAliasTmp)->IDTRANS)
+    cLote     := AllTrim((cAliasTmp)->LOTE)
+    cLoteRast := AllTrim((cAliasTmp)->LOTERAST)
+    cOP       := AllTrim((cAliasTmp)->OP)
+    cEnder1   := AllTrim((cAliasTmp)->ENDER1)
+    cEnder2   := AllTrim((cAliasTmp)->ENDER2)
+    cUsuario  := AllTrim((cAliasTmp)->USUARIO)
+    cDtCria   := AllTrim((cAliasTmp)->DTCRIA)
+    cDtInteg  := AllTrim((cAliasTmp)->DTINTEG)
+    cErro     := AllTrim((cAliasTmp)->ERRO)
+    cObs      := AllTrim((cAliasTmp)->OBS)
+
+    cQuery := "SELECT "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.ErrDescription, ''), 1, 250) AS VARCHAR(250)) AS ERRO1, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.ErrDescription, ''), 251, 250) AS VARCHAR(250)) AS ERRO2, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.ErrDescription, ''), 501, 250) AS VARCHAR(250)) AS ERRO3, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.ErrDescription, ''), 751, 250) AS VARCHAR(250)) AS ERRO4, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.Comments, ''), 1, 250) AS VARCHAR(250)) AS OBS1, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.Comments, ''), 251, 250) AS VARCHAR(250)) AS OBS2, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.Comments, ''), 501, 250) AS VARCHAR(250)) AS OBS3, "
+    cQuery += "  CAST(SUBSTRING(ISNULL(IT.Comments, ''), 751, 250) AS VARCHAR(250)) AS OBS4 "
+    cQuery += " FROM " + PCF_TAB_OUTINTEG + " IT WITH (NOLOCK) "
+    cQuery += " WHERE IT.IDOutInteg = ?"
+
+    oExec := FWExecStatement():New(cQuery)
+    oExec:SetNumeric(1, nIdOut)
+    cAlsQry := oExec:OpenAlias()
+
+    If !Empty(cAlsQry) .And. !(cAlsQry)->(Eof())
+        If (cAlsQry)->(FieldPos("ERRO1")) > 0
+            cErro := AllTrim((cAlsQry)->ERRO1 + (cAlsQry)->ERRO2 + (cAlsQry)->ERRO3 + (cAlsQry)->ERRO4)
+        EndIf
+        If (cAlsQry)->(FieldPos("OBS1")) > 0
+            cObs := AllTrim((cAlsQry)->OBS1 + (cAlsQry)->OBS2 + (cAlsQry)->OBS3 + (cAlsQry)->OBS4)
+        EndIf
+    EndIf
+
+    If !Empty(cAlsQry)
+        (cAlsQry)->(DbCloseArea())
+    EndIf
+    oExec:Destroy()
+    oExec := Nil
+
+    DEFINE MSDIALOG oDlg TITLE "Visualizar Registro - Monitor PC Factory" FROM 000, 000 TO 550, 760 PIXEL
+
+    // Linha 1: ID Out Integ., Status Integ., Dt. Criação, Dt. Integração
+    @ 007, 008 SAY "ID Out Integ.:" SIZE 050, 008 OF oDlg PIXEL
+    @ 015, 008 MSGET cIdOut SIZE 070, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 007, 086 SAY "Status Integ.:" SIZE 050, 008 OF oDlg PIXEL
+    @ 015, 086 MSGET cIntegr SIZE 040, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 007, 134 SAY "Dt. Criação:" SIZE 055, 008 OF oDlg PIXEL
+    @ 015, 134 MSGET cDtCria SIZE 115, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 007, 257 SAY "Dt. Integração:" SIZE 055, 008 OF oDlg PIXEL
+    @ 015, 257 MSGET cDtInteg SIZE 115, 010 OF oDlg PIXEL WHEN .F.
+
+    // Linha 2: Tipo Mov., Desc. Tipo Mov., Usuário
+    @ 030, 008 SAY "Tipo Mov.:" SIZE 050, 008 OF oDlg PIXEL
+    @ 038, 008 MSGET cMovType SIZE 070, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 030, 086 SAY "Desc. Tipo Mov.:" SIZE 060, 008 OF oDlg PIXEL
+    @ 038, 086 MSGET cMovName SIZE 163, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 030, 257 SAY "Usuário:" SIZE 050, 008 OF oDlg PIXEL
+    @ 038, 257 MSGET cUsuario SIZE 115, 010 OF oDlg PIXEL WHEN .F.
+
+    // Linha 3: Produto, Quantidade, Ordem Produção
+    @ 053, 008 SAY "Produto:" SIZE 050, 008 OF oDlg PIXEL
+    @ 061, 008 MSGET cProduto SIZE 125, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 053, 141 SAY "Quantidade:" SIZE 050, 008 OF oDlg PIXEL
+    @ 061, 141 MSGET cQtd SIZE 108, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 053, 257 SAY "Ordem Produção:" SIZE 060, 008 OF oDlg PIXEL
+    @ 061, 257 MSGET cOP SIZE 115, 010 OF oDlg PIXEL WHEN .F.
+
+    // Linha 4: Lote, Lote Rastro, ID Transação
+    @ 076, 008 SAY "Lote:" SIZE 050, 008 OF oDlg PIXEL
+    @ 084, 008 MSGET cLote SIZE 115, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 076, 131 SAY "Lote Rastro:" SIZE 050, 008 OF oDlg PIXEL
+    @ 084, 131 MSGET cLoteRast SIZE 118, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 076, 257 SAY "ID Transação:" SIZE 060, 008 OF oDlg PIXEL
+    @ 084, 257 MSGET cIdTrans SIZE 115, 010 OF oDlg PIXEL WHEN .F.
+
+    // Linha 5: Endereço 1, Endereço 2
+    @ 099, 008 SAY "Endereço 1:" SIZE 050, 008 OF oDlg PIXEL
+    @ 107, 008 MSGET cEnder1 SIZE 178, 010 OF oDlg PIXEL WHEN .F.
+
+    @ 099, 194 SAY "Endereço 2:" SIZE 050, 008 OF oDlg PIXEL
+    @ 107, 194 MSGET cEnder2 SIZE 178, 010 OF oDlg PIXEL WHEN .F.
+
+    // Linha 6: Erro (Memo)
+    @ 123, 008 SAY "Erro:" SIZE 050, 008 OF oDlg PIXEL
+    @ 131, 008 GET oMemoErr VAR cErro MEMO SIZE 364, 055 OF oDlg PIXEL READONLY
+
+    // Linha 7: Observação (Memo)
+    @ 190, 008 SAY "Observação:" SIZE 050, 008 OF oDlg PIXEL
+    @ 198, 008 GET oMemoObs VAR cObs MEMO SIZE 364, 050 OF oDlg PIXEL READONLY
+
+    @ 255, 322 BUTTON "Fechar" SIZE 050, 013 OF oDlg PIXEL ACTION oDlg:End()
+
+    ACTIVATE MSDIALOG oDlg CENTERED
+
+Return Nil
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PCPM09Rep
+Executa o UPDATE na tabela PCF_Integ.dbo.TBLOutInteg definindo
+Ext1Integrated = 0 conforme os filtros informados pelo usuário
+(OP, Lote, Produto e Data Criação).
+@type User Function
+@author Rodrigo
+@since 11/11/2026
+/*/
+//-------------------------------------------------------------------
+User Function PCPM09Rep()
+
+    Local aPergs   := {} as array
+    Local aRet     := {} as array
+    Local aBinds   := {} as array
+    Local oExecCnt := Nil as object
+    Local cAlsCnt  := "" as character
+    Local cOP      := Space(30) as character
+    Local cLote    := Space(30) as character
+    Local cProduto := Space(30) as character
+    Local dDtCria  := CtoD("") as date
+    Local cDtCria  := "" as character
+    Local cWhere   := "" as character
+    Local cWhereUp := "" as character
+    Local cQryCnt  := "" as character
+    Local cQryUpd  := "" as character
+    Local cResumo  := "" as character
+    Local nBind    := 0  as numeric
+    Local nQtdReg  := 0  as numeric
+    Local nRetSql  := 0  as numeric
+
+    aAdd(aPergs, {1, "Ordem de Produção", cOP     , "@!", ".T.", ""   , ".T.", 90, .F.})
+    aAdd(aPergs, {1, "Lote"             , cLote   , ""  , ".T.", ""   , ".T.", 90, .F.})
+    aAdd(aPergs, {1, "Produto"          , cProduto, "@!", ".T.", "SB1", ".T.", 90, .F.})
+    aAdd(aPergs, {1, "Data Criação"     , dDtCria , ""  , ".T.", ""   , ".T.", 60, .F.})
+
+    If !ParamBox(aPergs, "Reprocessar Integração - Filtros (WHERE)", @aRet, , , .T., , , , , .F., .F.)
+        Return Nil
+    EndIf
+
+    cOP      := AllTrim(aRet[1])
+    cLote    := AllTrim(aRet[2])
+    cProduto := AllTrim(aRet[3])
+    dDtCria  := aRet[4]
+
+    If Empty(cOP) .And. Empty(cLote) .And. Empty(cProduto) .And. Empty(dDtCria)
+        MsgAlert("Informe ao menos um filtro (Ordem de Produção, Lote, Produto ou Data Criação) para montar a cláusula WHERE.", "Monitor PC Factory")
+        Return Nil
+    EndIf
+
+    If !Empty(cOP)
+        cWhere   += " AND WOCode = ? "
+        cWhereUp += " AND WOCode = '" + StrTran(cOP, "'", "''") + "' "
+        aAdd(aBinds, cOP)
+        cResumo  += "- Ordem de Produção: " + cOP + CRLF
+    EndIf
+
+    If !Empty(cLote)
+        cWhere   += " AND LotCode = ? "
+        cWhereUp += " AND LotCode = '" + StrTran(cLote, "'", "''") + "' "
+        aAdd(aBinds, cLote)
+        cResumo  += "- Lote: " + cLote + CRLF
+    EndIf
+
+    If !Empty(cProduto)
+        cWhere   += " AND ProductCode = ? "
+        cWhereUp += " AND ProductCode = '" + StrTran(cProduto, "'", "''") + "' "
+        aAdd(aBinds, cProduto)
+        cResumo  += "- Produto: " + cProduto + CRLF
+    EndIf
+
+    If !Empty(dDtCria)
+        cDtCria  := DtoS(dDtCria)
+        cWhere   += " AND CONVERT(VARCHAR(8), DtCreation, 112) = ? "
+        cWhereUp += " AND CONVERT(VARCHAR(8), DtCreation, 112) = '" + cDtCria + "' "
+        aAdd(aBinds, cDtCria)
+        cResumo  += "- Data Criação: " + DtoC(dDtCria) + CRLF
+    EndIf
+
+    // Remove o primeiro " AND "
+    cWhere   := AllTrim(SubStr(cWhere, 6))
+    cWhereUp := AllTrim(SubStr(cWhereUp, 6))
+
+    // Trava adicional de segurança: garante que a cláusula WHERE nunca fique vazia
+    If Empty(cWhere) .Or. Empty(cWhereUp)
+        MsgStop("Operação bloqueada por segurança: não é permitido executar UPDATE sem cláusula WHERE.", "Monitor PC Factory")
+        Return Nil
+    EndIf
+
+    cQryCnt := "SELECT CAST(COUNT(1) AS INT) AS QTD FROM " + PCF_TAB_OUTINTEG + " WITH (NOLOCK) WHERE " + cWhere
+
+    oExecCnt := FWExecStatement():New(cQryCnt)
+    For nBind := 1 To Len(aBinds)
+        oExecCnt:SetString(nBind, aBinds[nBind])
+    Next nBind
+
+    cAlsCnt := oExecCnt:OpenAlias()
+    If !Empty(cAlsCnt) .And. !(cAlsCnt)->(Eof()) .And. (cAlsCnt)->(FieldPos("QTD")) > 0
+        nQtdReg := (cAlsCnt)->QTD
+    EndIf
+
+    If !Empty(cAlsCnt)
+        (cAlsCnt)->(DbCloseArea())
+    EndIf
+    oExecCnt:Destroy()
+    oExecCnt := Nil
+
+    If nQtdReg <= 0
+        MsgInfo("Nenhum registro encontrado em " + PCF_TAB_OUTINTEG + " para os filtros informados:" + CRLF + CRLF + cResumo, "Monitor PC Factory")
+        Return Nil
+    EndIf
+
+    If !MsgYesNo("Foram encontrados " + cValToChar(nQtdReg) + " registro(s) para os filtros:" + CRLF + CRLF + cResumo + CRLF + "Deseja executar o UPDATE (Ext1Integrated = 0)?", "Confirmar Reprocessamento")
+        Return Nil
+    EndIf
+
+    cQryUpd := "UPDATE " + PCF_TAB_OUTINTEG + " SET Ext1Integrated = 0 WHERE " + cWhereUp
+
+    If Empty(cWhereUp) .Or. !(" WHERE " $ Upper(cQryUpd))
+        MsgStop("Operação bloqueada por segurança: a instrução UPDATE não possui cláusula WHERE válida.", "Monitor PC Factory")
+        Return Nil
+    EndIf
+
+    FwMsgRun(, {|| nRetSql := TCSQLExec(cQryUpd)}, "Monitor PC Factory", "Atualizando registros para reprocessamento...")
+
+    If nRetSql < 0
+        MsgStop("Erro ao executar o UPDATE em " + PCF_TAB_OUTINTEG + ":" + CRLF + TCSQLError(), "Monitor PC Factory")
+    Else
+        FwMsgRun(, {|| CarregaDados()}, "Monitor PC Factory", "Recarregando monitor...")
+        oBrowse:Refresh(.T.)
+        MsgInfo("Reprocessamento concluído com sucesso! " + cValToChar(nQtdReg) + " registro(s) atualizado(s) para Ext1Integrated = 0.", "Monitor PC Factory")
+    EndIf
+
+Return Nil
